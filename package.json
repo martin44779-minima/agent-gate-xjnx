@@ -1,0 +1,15 @@
+{
+  "name": "agent-gate",
+  "version": "1.0.0",
+  "description": "AML反洗钱数据处理网关服务",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest --coverage",
+    "lint": "eslint src/"
+  },
+  "keywords": ["aml", "anti-money-laundering", "gateway"],
+  "license": "UNLICENSED",
+  "private": true
+}
