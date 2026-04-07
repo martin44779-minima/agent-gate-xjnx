@@ -7,6 +7,8 @@ export interface TaskResultRow {
   result_content: unknown;
   report: string | null;
   risk_level: string | null;
+  risk_score: number | null;
+  conclusion: string | null;
   create_time: Date;
 }
 
@@ -16,13 +18,15 @@ export interface CreateResultParams {
   resultContent?: unknown;
   report?: string;
   riskLevel?: string;
+  riskScore?: number;
+  conclusion?: string;
 }
 
 export const taskResultModel = {
   async create(params: CreateResultParams): Promise<TaskResultRow> {
     const { rows } = await query<TaskResultRow>(
-      `INSERT INTO task_result (task_id, agent_id, result_content, report, risk_level)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO task_result (task_id, agent_id, result_content, report, risk_level, risk_score, conclusion)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
       [
         params.taskId,
@@ -30,6 +34,8 @@ export const taskResultModel = {
         params.resultContent ? JSON.stringify(params.resultContent) : null,
         params.report || null,
         params.riskLevel || null,
+        params.riskScore ?? null,
+        params.conclusion || null,
       ]
     );
     return rows[0];

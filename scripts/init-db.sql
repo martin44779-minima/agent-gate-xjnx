@@ -7,8 +7,8 @@
 CREATE TABLE IF NOT EXISTS task_main (
   id BIGSERIAL PRIMARY KEY,
   task_id VARCHAR(64) NOT NULL,
-  upstream_id VARCHAR(64) NOT NULL,
-  case_id VARCHAR(64),
+  case_id VARCHAR(128),
+  callback_url VARCHAR(500),
   task_status SMALLINT NOT NULL DEFAULT 0,
   create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   start_time TIMESTAMP,
@@ -16,12 +16,11 @@ CREATE TABLE IF NOT EXISTS task_main (
   total_cost_ms BIGINT DEFAULT 0,
   retry_count INT NOT NULL DEFAULT 0,
   last_error_code VARCHAR(50),
-  callback_url VARCHAR(500),
   remark VARCHAR(500)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_task_main_task_id ON task_main(task_id);
-CREATE INDEX IF NOT EXISTS idx_task_main_upstream ON task_main(upstream_id, case_id);
+CREATE INDEX IF NOT EXISTS idx_task_main_case_id ON task_main(case_id);
 CREATE INDEX IF NOT EXISTS idx_task_main_status ON task_main(task_status);
 CREATE INDEX IF NOT EXISTS idx_task_main_create_time ON task_main(create_time);
 
@@ -46,6 +45,8 @@ CREATE TABLE IF NOT EXISTS task_result (
   result_content JSONB,
   report TEXT,
   risk_level VARCHAR(20),
+  risk_score NUMERIC(6,2),
+  conclusion TEXT,
   create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -1,22 +1,22 @@
 import { taskMainModel } from '../models/task-main.model';
 import { taskRawModel } from '../models/task-raw.model';
 import { taskResultModel } from '../models/task-result.model';
-import { TASK_STATUS_TEXT, TaskStatusValue } from '../config/constants';
+import { TASK_STATUS_TEXT, TaskStatusValue, DATA_TYPES } from '../config/constants';
+import { FormData } from '../schemas/submit.schema';
 
 export interface TaskDetail {
   taskId: string;
+  caseId: string | null;
   status: TaskStatusValue;
   statusText: string;
-  upstreamId: string;
   createTime: Date;
   startTime: Date | null;
   endTime: Date | null;
   totalCostMs: number;
   retryCount: number;
   result: {
-    riskLevel: string | null;
     report: string | null;
-    resultContent: unknown;
+    rawResponse: unknown;
   } | null;
 }
 
@@ -29,17 +29,16 @@ export const storageService = {
     const taskResult = await taskResultModel.findByTaskId(taskId);
     if (taskResult) {
       result = {
-        riskLevel: taskResult.risk_level,
         report: taskResult.report,
-        resultContent: taskResult.result_content,
+        rawResponse: taskResult.result_content,
       };
     }
 
     return {
       taskId: task.task_id,
+      caseId: task.case_id,
       status: task.task_status,
       statusText: TASK_STATUS_TEXT[task.task_status] || '未知',
-      upstreamId: task.upstream_id,
       createTime: task.create_time,
       startTime: task.start_time,
       endTime: task.end_time,
@@ -49,22 +48,43 @@ export const storageService = {
     };
   },
 
-  async getRawData(taskId: string): Promise<Record<string, unknown>> {
+  /**
+   * 获取任务原始入参 form 数据
+   */
+  async getRawData(taskId: string): Promise<FormData | null> {
     const rows = await taskRawModel.findByTaskId(taskId);
-    const data: Record<string, unknown> = {};
-    for (const row of rows) {
-      data[row.data_type] = row.data_content;
-    }
-    return data;
+    const raw = rows.find((r) => r.data_type === DATA_TYPES.RAW_INPUT);
+    if (!raw) return null;
+
+    const content = typeof raw.data_content === 'string'
+      ? JSON.parse(raw.data_content)
+      : raw.data_content;
+    return content as FormData;
+  },
+
+  /**
+   * 获取任务的 callback_url 和 case_id
+   */
+  async getTaskCallbackInfo(taskId: string): Promise<{ callbackUrl: string | null; caseId: string | null } | null> {
+    const task = await taskMainModel.findByTaskId(taskId);
+    if (!task) return null;
+    return {
+      callbackUrl: task.callback_url,
+      caseId: task.case_id,
+    };
   },
 
   async saveResult(
     taskId: string,
     agentId: string,
-    resultContent: unknown,
-    report: string,
-    riskLevel: string
+    rawResponse: unknown,
+    report: string
   ): Promise<void> {
-    await taskResultModel.create({ taskId, agentId, resultContent, report, riskLevel });
+    await taskResultModel.create({
+      taskId,
+      agentId,
+      resultContent: rawResponse,
+      report,
+    });
   },
 };

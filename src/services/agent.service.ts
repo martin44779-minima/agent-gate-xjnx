@@ -3,48 +3,62 @@ import config from '../config';
 import { AgentError } from '../utils/errors';
 import { ERROR_CODES } from '../config/constants';
 import { createModuleLogger } from '../utils/logger';
+import { FormData } from '../schemas/submit.schema';
 
 const logger = createModuleLogger('agent');
 
+/**
+ * AW 智能体返回结果
+ * flowise prediction 端点返回的是报告文本（msg 字段用于回调）
+ */
 export interface AgentInvokeResult {
-  agentId: string;
-  resultContent: unknown;
+  /** AW 智能体返回的完整原始响应 */
+  rawResponse: unknown;
+  /** 报告文本（回调时作为 msg 使用） */
   report: string;
-  riskLevel: string;
 }
 
 export const agentService = {
-  async invoke(taskId: string, rawData: unknown): Promise<AgentInvokeResult> {
-    const { baseUrl, apiKey, agentId, timeoutMs } = config.agent;
+  /**
+   * 调用 AW 智能体（flowise prediction 端点）
+   * 请求体按接口文档格式: { form: { ...10字段 }, streaming: false }
+   */
+  async invoke(taskId: string, formData: FormData): Promise<AgentInvokeResult> {
+    const { baseUrl, timeoutMs } = config.agent;
 
-    logger.info('调用AW智能体', { taskId, agentId });
+    logger.info('调用AW智能体', { taskId, url: baseUrl });
 
     try {
       const response = await axios.post(
-        `${baseUrl}/api/run`,
-        { taskId, data: rawData },
+        baseUrl,
+        {
+          form: formData,
+          streaming: false,
+        },
         {
           headers: {
             'Content-Type': 'application/json',
-            'X-Agent-ID': agentId,
-            'X-API-Key': apiKey,
           },
           timeout: timeoutMs,
         }
       );
 
       const result = response.data;
-      if (!result || typeof result !== 'object') {
-        throw new AgentError('AW智能体返回数据格式异常', ERROR_CODES.ERR_DATA_INVALID.code, false);
-      }
-
       logger.info('AW智能体调用成功', { taskId });
 
+      // flowise 返回的可能是字符串或对象，统一处理
+      let report: string;
+      if (typeof result === 'string') {
+        report = result;
+      } else if (result && typeof result === 'object') {
+        report = result.text ?? result.msg ?? result.report ?? JSON.stringify(result);
+      } else {
+        report = String(result);
+      }
+
       return {
-        agentId,
-        resultContent: result.resultContent || result,
-        report: result.report || '',
-        riskLevel: result.riskLevel || 'unknown',
+        rawResponse: result,
+        report,
       };
     } catch (err) {
       if (err instanceof AgentError) throw err;
@@ -73,12 +87,10 @@ function classifyError(err: AxiosError): { code: string; retryable: boolean } {
   if (status === 400) return ERROR_CODES.ERR_DATA_INVALID;
   if (status === 401 || status === 403) return ERROR_CODES.ERR_AUTH_FAILED;
 
-  // 业务错误
   const data = err.response?.data as Record<string, unknown> | undefined;
   if (data?.code === 'BUSINESS_CHECK_FAILED') {
     return ERROR_CODES.ERR_BUSINESS_CHECK;
   }
 
-  // 未知错误默认可重试
   return { code: 'ERR_UNKNOWN', retryable: true };
 }

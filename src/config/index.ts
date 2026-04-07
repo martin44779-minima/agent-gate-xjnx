@@ -23,24 +23,23 @@ const config = {
   },
   db: {
     host: requiredEnv('DB_HOST'),
-    port: parseInt(optionalEnv('DB_PORT', '5432'), 10),
+    port: parseInt(optionalEnv('DB_PORT', '8000'), 10),
     user: requiredEnv('DB_USER'),
     password: requiredEnv('DB_PASSWORD'),
     database: requiredEnv('DB_NAME'),
+    schema: optionalEnv('DB_SCHEMA', 'public'),
     max: parseInt(optionalEnv('DB_MAX_CONNECTIONS', '20'), 10),
   },
   agent: {
-    baseUrl: requiredEnv('AW_AGENT_BASE_URL'),
-    apiKey: requiredEnv('AW_API_KEY'),
-    agentId: requiredEnv('AW_AGENT_ID'),
-    timeoutMs: parseInt(optionalEnv('AW_TIMEOUT_MS', '60000'), 10),
+    /** AW 智能体完整 URL（flowise prediction 端点） */
+    baseUrl: requiredEnv('AW_AGENT_URL'),
+    timeoutMs: parseInt(optionalEnv('AW_TIMEOUT_MS', '120000'), 10),
   },
   retry: {
     maxRetries: parseInt(optionalEnv('RETRY_MAX', '3'), 10),
     intervalMs: parseInt(optionalEnv('RETRY_INTERVAL_MS', '30000'), 10),
   },
   callback: {
-    url: process.env.DOWNSTREAM_CALLBACK_URL || '',
     timeoutMs: parseInt(optionalEnv('CALLBACK_TIMEOUT_MS', '10000'), 10),
   },
   security: {

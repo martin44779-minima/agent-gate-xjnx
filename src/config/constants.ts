@@ -26,7 +26,6 @@ export const ERROR_CODES = {
 } as const;
 
 export const DATA_TYPES = {
-  BASIC: 'basic',
-  FLOW: 'flow',
-  HISTORY: 'history',
+  /** 整体原始入参（10 字段 JSON） */
+  RAW_INPUT: 'raw_input',
 } as const;

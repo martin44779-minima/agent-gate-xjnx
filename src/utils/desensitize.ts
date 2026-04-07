@@ -19,6 +19,13 @@ export function maskName(name: string): string {
 }
 
 const SENSITIVE_FIELDS: Record<string, (v: string) => string> = {
+  // 中文字段名（实际入参中的敏感字段）
+  '证件号码': maskIdCard,
+  '电话': maskPhone,
+  '客户名称': maskName,
+  '账户名称': maskName,
+  '对手名称': maskName,
+  // 英文字段名（兼容）
   idNumber: maskIdCard,
   idCard: maskIdCard,
   certNo: maskIdCard,

@@ -4,8 +4,8 @@ import { TaskStatusValue } from '../config/constants';
 export interface TaskMainRow {
   id: number;
   task_id: string;
-  upstream_id: string;
   case_id: string | null;
+  callback_url: string | null;
   task_status: TaskStatusValue;
   create_time: Date;
   start_time: Date | null;
@@ -13,15 +13,7 @@ export interface TaskMainRow {
   total_cost_ms: number;
   retry_count: number;
   last_error_code: string | null;
-  callback_url: string | null;
   remark: string | null;
-}
-
-export interface CreateTaskParams {
-  taskId: string;
-  upstreamId: string;
-  caseId?: string;
-  callbackUrl?: string;
 }
 
 export interface UpdateStatusParams {
@@ -35,16 +27,6 @@ export interface UpdateStatusParams {
 }
 
 export const taskMainModel = {
-  async create(params: CreateTaskParams): Promise<TaskMainRow> {
-    const { rows } = await query<TaskMainRow>(
-      `INSERT INTO task_main (task_id, upstream_id, case_id, task_status, retry_count, callback_url)
-       VALUES ($1, $2, $3, 0, 0, $4)
-       RETURNING *`,
-      [params.taskId, params.upstreamId, params.caseId || null, params.callbackUrl || null]
-    );
-    return rows[0];
-  },
-
   async findByTaskId(taskId: string): Promise<TaskMainRow | null> {
     const { rows } = await query<TaskMainRow>(
       'SELECT * FROM task_main WHERE task_id = $1',
@@ -53,17 +35,10 @@ export const taskMainModel = {
     return rows[0] || null;
   },
 
-  async findByUpstreamIdAndCaseId(upstreamId: string, caseId?: string): Promise<TaskMainRow | null> {
-    if (caseId) {
-      const { rows } = await query<TaskMainRow>(
-        'SELECT * FROM task_main WHERE upstream_id = $1 AND case_id = $2',
-        [upstreamId, caseId]
-      );
-      return rows[0] || null;
-    }
+  async findByCaseId(caseId: string): Promise<TaskMainRow | null> {
     const { rows } = await query<TaskMainRow>(
-      'SELECT * FROM task_main WHERE upstream_id = $1 AND case_id IS NULL',
-      [upstreamId]
+      'SELECT * FROM task_main WHERE case_id = $1',
+      [caseId]
     );
     return rows[0] || null;
   },

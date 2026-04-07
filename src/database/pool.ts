@@ -15,6 +15,15 @@ const pool = new Pool({
   connectionTimeoutMillis: 5000,
 });
 
+pool.on('connect', (client) => {
+  // 设置 search_path 以支持 GaussDB schema
+  if (config.db.schema && config.db.schema !== 'public') {
+    client.query(`SET search_path TO ${config.db.schema}, public`).catch((err) => {
+      logger.error('设置search_path失败', { error: err.message });
+    });
+  }
+});
+
 pool.on('error', (err) => {
   logger.error('数据库连接池异常', { error: err.message });
 });

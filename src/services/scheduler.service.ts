@@ -4,7 +4,7 @@ import { storageService } from './storage.service';
 import { callbackService } from './callback.service';
 import eventBus from './event-bus';
 import config from '../config';
-import { TASK_STATUS, TASK_STATUS_TEXT } from '../config/constants';
+import { TASK_STATUS } from '../config/constants';
 import { AgentError } from '../utils/errors';
 import { nowDatetime, calcCostMs } from '../utils/helpers';
 import { createModuleLogger } from '../utils/logger';
@@ -45,19 +45,21 @@ export const schedulerService = {
     logger.info('任务开始处理', { taskId, retryCount: task.retry_count });
 
     try {
-      // 读取原始数据
-      const rawData = await storageService.getRawData(taskId);
+      // 读取原始入参 form 数据
+      const formData = await storageService.getRawData(taskId);
+      if (!formData) {
+        throw new Error('原始入参数据不存在');
+      }
 
-      // 调用AW智能体
-      const result = await agentService.invoke(taskId, rawData);
+      // 调用 AW 智能体
+      const result = await agentService.invoke(taskId, formData);
 
       // 保存处理结果
       await storageService.saveResult(
         taskId,
-        result.agentId,
-        result.resultContent,
-        result.report,
-        result.riskLevel
+        'aw-agent',
+        result.rawResponse,
+        result.report
       );
 
       // 更新为已完成
@@ -68,35 +70,34 @@ export const schedulerService = {
         totalCostMs: calcCostMs(startTime, endTime),
       });
 
-      logger.info('任务处理完成', { taskId, riskLevel: result.riskLevel });
+      logger.info('任务处理完成', { taskId, caseId: task.case_id });
 
-      // 通知下游
-      await callbackService.notifyDownstream({
-        taskId,
-        status: TASK_STATUS.COMPLETED,
-        statusText: TASK_STATUS_TEXT[TASK_STATUS.COMPLETED],
-        riskLevel: result.riskLevel,
-        report: result.report,
-        completedAt: endTime.toISOString(),
-      });
+      // 回调下游 — 成功: { case_id, success: true, msg: "报告原文", timestamp }
+      if (task.callback_url && task.case_id) {
+        await callbackService.notifyDownstream(
+          task.callback_url,
+          task.case_id,
+          true,
+          result.report
+        );
+      }
     } catch (err) {
-      await handleProcessError(taskId, task.retry_count, startTime, err as Error);
+      await handleProcessError(taskId, task, startTime, err as Error);
     }
   },
 };
 
 async function handleProcessError(
   taskId: string,
-  currentRetryCount: number,
+  task: { retry_count: number; callback_url: string | null; case_id: string | null },
   startTime: Date,
   err: Error
 ): Promise<void> {
   const isRetryable = err instanceof AgentError && err.retryable;
   const errorCode = err instanceof AgentError ? err.errorCode : 'ERR_UNKNOWN';
-  const newRetryCount = currentRetryCount + 1;
+  const newRetryCount = task.retry_count + 1;
 
   if (isRetryable && newRetryCount < config.retry.maxRetries) {
-    // 可重试且未达上限 → 重试中
     await taskMainModel.updateStatus(taskId, {
       taskStatus: TASK_STATUS.RETRYING,
       retryCount: newRetryCount,
@@ -111,14 +112,12 @@ async function handleProcessError(
       nextRetryMs: config.retry.intervalMs,
     });
 
-    // 退避后重新处理
     setTimeout(() => {
       schedulerService.processTask(taskId).catch((retryErr) => {
         logger.error('重试处理异常', { taskId, error: (retryErr as Error).message });
       });
     }, config.retry.intervalMs);
   } else {
-    // 不可重试或达上限 → 失败
     const endTime = nowDatetime();
     await taskMainModel.updateStatus(taskId, {
       taskStatus: TASK_STATUS.FAILED,
@@ -131,13 +130,14 @@ async function handleProcessError(
 
     logger.error('任务最终失败', { taskId, errorCode, retryCount: newRetryCount });
 
-    // 通知下游失败
-    await callbackService.notifyDownstream({
-      taskId,
-      status: TASK_STATUS.FAILED,
-      statusText: TASK_STATUS_TEXT[TASK_STATUS.FAILED],
-      failReason: err.message,
-      completedAt: endTime.toISOString(),
-    });
+    // 回调下游 — 失败: { case_id, success: false, msg: "失败原因", timestamp }
+    if (task.callback_url && task.case_id) {
+      await callbackService.notifyDownstream(
+        task.callback_url,
+        task.case_id,
+        false,
+        err.message
+      );
+    }
   }
 }
