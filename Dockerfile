@@ -3,6 +3,9 @@ FROM --platform=linux/arm64 node:20-slim AS builder
 
 WORKDIR /app
 
+# 使用阿里云 npm 镜像
+RUN npm config set registry https://registry.npmmirror.com
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
@@ -15,8 +18,13 @@ FROM --platform=linux/arm64 node:20-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends dumb-init \
+# 使用阿里云 Debian 镜像
+RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends dumb-init \
     && rm -rf /var/lib/apt/lists/*
+
+# 使用阿里云 npm 镜像
+RUN npm config set registry https://registry.npmmirror.com
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
