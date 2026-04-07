@@ -205,21 +205,20 @@ X-API-Key: test-key
 请求体格式：
 ```json
 {
+  "callback_url": "http://your-system/api/aml/callback",
+  "case_id": "UP_20231027_001",
   "form": {
     "customer_info": "...",
     "customer_account_info": "...",
     "bank_statement_info": "...",
     "feature_info": "...",
-    "feature_statement_info": "...",
     "summery_info": "...",
+    "feature_statement_info": "",
     "history_case_info": "",
     "doubt_exclusion_reasons_info": "",
     "due_diligence_info": "",
-    "history_rating_info": "...",
-    "callback_url": "http://your-system/callback",
-    "case_id": "唯一案例ID"
-  },
-  "streaming": false
+    "history_rating_info": "..."
+  }
 }
 ```
 
@@ -280,7 +279,15 @@ curl http://localhost:3000/api/v1/aml/task/{taskId} \
 
 ## 8. 请求体字段说明
 
-form 内共 12 个字段，全部为字符串类型：
+顶层共 3 个字段：
+
+| 字段名 | 必填 | 类型 | 说明 |
+|--------|------|------|------|
+| `callback_url` | 是 | String | 异步处理完成后的回调地址，需为可访问的完整 URL |
+| `case_id` | 是 | String | 案例ID，由上游系统生成，必须全局唯一。建议格式：`{系统标识}_{日期}_{序列号}` |
+| `form` | 是 | Object | 包含所有反洗钱业务数据的对象 |
+
+form 内共 10 个字段，全部为字符串类型：
 
 | 字段名 | 必填 | 说明 |
 |--------|------|------|
@@ -288,14 +295,12 @@ form 内共 12 个字段，全部为字符串类型：
 | `customer_account_info` | 是 | 客户账户信息（JSON 数组字符串） |
 | `bank_statement_info` | 是 | 银行流水汇总（JSON 对象字符串） |
 | `feature_info` | 是 | 特征列表（JSON 数组字符串） |
-| `feature_statement_info` | 是 | 特征流水明细（字符串） |
 | `summery_info` | 是 | 交易汇总文本 |
+| `feature_statement_info` | 否 | 特征说明信息 |
 | `history_case_info` | 否 | 历史案例，无则传 `""` |
-| `doubt_exclusion_reasons_info` | 否 | 疑点排除原因，无则传 `""` |
-| `due_diligence_info` | 否 | 尽职调查信息，无则传 `""` |
+| `doubt_exclusion_reasons_info` | 否 | 可疑排除原因，无则传 `""` |
+| `due_diligence_info` | 否 | 尽职调查信息 |
 | `history_rating_info` | 否 | 历史评级（JSON 数组字符串） |
-| `callback_url` | 否 | 报告生成后的回调地址 |
-| `case_id` | 否 | 案例ID（全局唯一），为空则自动生成 |
 
 ## 9. Docker 部署
 
@@ -343,9 +348,9 @@ docker run -d --name agent-gate -p 3000:3000 \
 | 返回 `401 请求时间戳过期` | 签名时间戳偏差超过5分钟 | 确认客户端与服务器时间同步 |
 | 返回 `401 签名验证失败` | 签名不正确 | 检查签名算法或留空 `SIGNATURE_SECRET` 关闭签名校验 |
 | 返回 `403 IP 不在白名单中` | IP 被拦截 | 留空 `IP_WHITELIST` 关闭 IP 限制，或将客户端 IP 加入白名单 |
-| 返回 `400 校验失败` | 请求体格式不对 | 确认外层有 `form` 包裹，必填字段齐全 |
+| 返回 `400 校验失败` | 请求体格式不对 | 确认顶层有 `callback_url`、`case_id`、`form`，form 内必填字段齐全 |
 | 启动报 `缺少必填环境变量: AW_AGENT_URL` | 旧配置名 | 用 `AW_AGENT_URL` 替代旧的 `AW_AGENT_BASE_URL` |
-| 回调未收到 | form 中 `callback_url` 为空 | 确认提交时传了 `callback_url` |
+| 回调未收到 | callback_url 不可达 | 确认 `callback_url` 地址可从服务端网络访问 |
 | AW 调用超时 | 模型推理时间长 | 调大 `AW_TIMEOUT_MS`（默认120秒） |
 
 ## 11. 日志位置

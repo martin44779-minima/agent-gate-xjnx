@@ -1,5 +1,5 @@
 # ---- 构建阶段 ----
-FROM --platform=linux/arm64 registry.cn-hangzhou.aliyuncs.com/official-images/node:20-slim AS builder
+FROM --platform=linux/arm64 docker.m.daocloud.io/library/node:20-slim AS builder
 
 WORKDIR /app
 
@@ -14,7 +14,7 @@ COPY src ./src
 RUN npm run build
 
 # ---- 运行阶段 ----
-FROM --platform=linux/arm64 registry.cn-hangzhou.aliyuncs.com/official-images/node:20-slim
+FROM --platform=linux/arm64 docker.m.daocloud.io/library/node:20-slim
 
 WORKDIR /app
 

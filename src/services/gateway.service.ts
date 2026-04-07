@@ -23,11 +23,7 @@ function formatTimestamp(): string {
 
 export const gatewayService = {
   async submit(body: SubmitRequestBody): Promise<SubmitResult> {
-    const { form } = body;
-
-    // 使用客户端传入的 case_id，若为空则自动生成
-    const caseId = form.case_id && form.case_id.trim() !== '' ? form.case_id : generateUUID();
-    const callbackUrl = form.callback_url || null;
+    const { form, case_id: caseId, callback_url: callbackUrl } = body;
 
     // 生成内部 taskId
     const taskId = generateUUID();
