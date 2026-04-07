@@ -1,4 +1,4 @@
-import { Pool, PoolClient, QueryResult } from 'pg';
+import { Pool, PoolClient, QueryResult } from 'pg-opengauss';
 import config from '../config';
 import { createModuleLogger } from '../utils/logger';
 

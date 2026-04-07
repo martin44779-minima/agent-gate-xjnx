@@ -1,5 +1,5 @@
 # ---- 构建阶段 ----
-FROM node:20-alpine AS builder
+FROM --platform=linux/arm64 node:20-slim AS builder
 
 WORKDIR /app
 
@@ -11,9 +11,12 @@ COPY src ./src
 RUN npm run build
 
 # ---- 运行阶段 ----
-FROM node:20-alpine
+FROM --platform=linux/arm64 node:20-slim
 
 WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends dumb-init \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
@@ -23,4 +26,4 @@ COPY scripts ./scripts
 
 EXPOSE 3000
 
-CMD ["node", "dist/server.js"]
+CMD ["dumb-init", "node", "dist/server.js"]
