@@ -43,6 +43,7 @@ const config = {
     timeoutMs: parseInt(optionalEnv('CALLBACK_TIMEOUT_MS', '10000'), 10),
   },
   security: {
+    authEnabled: optionalEnv('AUTH_ENABLED', 'false') === 'true',
     apiKeys: optionalEnv('ALLOWED_API_KEYS', '').split(',').filter(Boolean),
     ipWhitelist: optionalEnv('IP_WHITELIST', '').split(',').filter(Boolean),
     signatureSecret: optionalEnv('SIGNATURE_SECRET', ''),

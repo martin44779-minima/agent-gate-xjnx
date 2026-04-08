@@ -4,6 +4,10 @@ import { sha256, verifySignature } from '../utils/crypto';
 import { AuthError } from '../utils/errors';
 
 export function authMiddleware(req: Request, _res: Response, next: NextFunction): void {
+  if (!config.security.authEnabled) {
+    return next();
+  }
+
   try {
     const apiKey = req.headers['x-api-key'] as string | undefined;
     const signature = req.headers['x-signature'] as string | undefined;
