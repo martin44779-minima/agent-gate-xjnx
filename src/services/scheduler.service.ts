@@ -72,13 +72,13 @@ export const schedulerService = {
 
       logger.info('任务处理完成', { taskId, caseId: task.case_id });
 
-      // 回调下游 — 成功: { case_id, success: true, msg: "报告原文", timestamp }
+      // 回调上游 — 成功: { case_id, msg: "报告原文", report_create_time }
       if (task.callback_url && task.case_id) {
         await callbackService.notifyDownstream(
           task.callback_url,
           task.case_id,
-          true,
-          result.report
+          result.report,
+          null
         );
       }
     } catch (err) {
@@ -130,12 +130,12 @@ async function handleProcessError(
 
     logger.error('任务最终失败', { taskId, errorCode, retryCount: newRetryCount });
 
-    // 回调下游 — 失败: { case_id, success: false, msg: "失败原因", timestamp }
+    // 回调上游 — 失败: { case_id, msg: "失败原因", report_create_time: null }
     if (task.callback_url && task.case_id) {
       await callbackService.notifyDownstream(
         task.callback_url,
         task.case_id,
-        false,
+        null,
         err.message
       );
     }

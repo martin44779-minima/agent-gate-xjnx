@@ -245,8 +245,7 @@ curl -X POST http://localhost:3000/api/v1/aml/data/submit ^
 {
   "code": 0,
   "msg": "success",
-  "case_id": "TEST_CASE_001",
-  "timestamp": "2025-04-07 10:00:00"
+  "case_id": "TEST_CASE_001"
 }
 ```
 
@@ -254,14 +253,8 @@ curl -X POST http://localhost:3000/api/v1/aml/data/submit ^
 
 **GET** `/api/v1/aml/task/:taskId`
 
-**必需请求头：**
-```
-X-API-Key: test-key
-```
-
 ```bash
-curl http://localhost:3000/api/v1/aml/task/{taskId} \
-  -H "X-API-Key: test-key"
+curl http://localhost:3000/api/v1/aml/task/{taskId}
 ```
 
 ### 7.4 异步处理流程
@@ -269,12 +262,15 @@ curl http://localhost:3000/api/v1/aml/task/{taskId} \
 提交接口是**异步处理**的，完整流程：
 
 ```
-1. 客户端 POST 提交数据（需携带 X-API-Key）
-2. 服务立即返回 { code: 0, msg: "success", case_id, timestamp }
+1. 客户端 POST 提交数据
+2. 服务立即返回 { code: 0, msg: "success", case_id }
 3. 后台异步调用 AW 智能体处理
 4. AW 返回报告后，服务回调 callback_url：
-   成功: { case_id, success: true,  msg: "报告原文",   timestamp }
-   失败: { case_id, success: false, msg: "失败原因",   timestamp }
+   成功: { case_id, msg: "报告原文", report_create_time: "yyyy-MM-dd HH:mm:ss" }
+   失败: { case_id, msg: "失败原因", report_create_time: null }
+5. 上游系统需返回: { code: 1, msg: "回调接收成功" }
+6. 若回调失败（网络异常或上游返回 code!=1），系统会重试最多 3 次
+   重试间隔: 3秒 → 10秒 → 30秒
 ```
 
 ## 8. 请求体字段说明

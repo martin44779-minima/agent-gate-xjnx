@@ -12,13 +12,6 @@ export interface SubmitResult {
   code: number;
   msg: string;
   case_id: string;
-  timestamp: string;
-}
-
-function formatTimestamp(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 export const gatewayService = {
@@ -71,7 +64,6 @@ export const gatewayService = {
       code: 0,
       msg: 'success',
       case_id: caseId,
-      timestamp: formatTimestamp(),
     };
   },
 };

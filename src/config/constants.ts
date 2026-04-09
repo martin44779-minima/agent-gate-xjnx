@@ -17,7 +17,7 @@ export const TASK_STATUS_TEXT: Record<TaskStatusValue, string> = {
 };
 
 export const ERROR_CODES = {
-  ERR_TIMEOUT: { code: 'ERR_TIMEOUT', retryable: true, desc: '调用AW平台超时' },
+  ERR_TIMEOUT: { code: 'ERR_TIMEOUT', retryable: false, desc: '调用AW平台超时' },
   ERR_SERVICE_UNAVAILABLE: { code: 'ERR_SERVICE_UNAVAILABLE', retryable: true, desc: 'AW平台返回503' },
   ERR_RATE_LIMIT: { code: 'ERR_RATE_LIMIT', retryable: true, desc: '触发接口限流' },
   ERR_DATA_INVALID: { code: 'ERR_DATA_INVALID', retryable: false, desc: '上游数据问题' },

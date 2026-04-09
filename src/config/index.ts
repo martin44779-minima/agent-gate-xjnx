@@ -33,7 +33,7 @@ const config = {
   agent: {
     /** AW 智能体完整 URL（flowise prediction 端点） */
     baseUrl: requiredEnv('AW_AGENT_URL'),
-    timeoutMs: parseInt(optionalEnv('AW_TIMEOUT_MS', '120000'), 10),
+    timeoutMs: parseInt(optionalEnv('AW_TIMEOUT_MS', '600000'), 10),
   },
   retry: {
     maxRetries: parseInt(optionalEnv('RETRY_MAX', '3'), 10),
@@ -41,6 +41,8 @@ const config = {
   },
   callback: {
     timeoutMs: parseInt(optionalEnv('CALLBACK_TIMEOUT_MS', '10000'), 10),
+    retryMax: parseInt(optionalEnv('CALLBACK_RETRY_MAX', '3'), 10),
+    retryIntervals: optionalEnv('CALLBACK_RETRY_INTERVALS', '3000,10000,30000').split(',').map(Number),
   },
   security: {
     authEnabled: optionalEnv('AUTH_ENABLED', 'false') === 'true',
