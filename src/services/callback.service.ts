@@ -5,13 +5,25 @@ import { createModuleLogger } from '../utils/logger';
 const logger = createModuleLogger('callback');
 
 /**
+ * 报告结构化对象（回调成功时的 msg 格式）
+ * 排除案例: 只有 analysis_report 有内容
+ * 风险案例: 四个字段都有内容
+ */
+export interface ReportMsg {
+  customer_behavior_analysis: string;
+  account_transaction_analysis: string;
+  doubtful_point_analysis: string;
+  analysis_report: string;
+}
+
+/**
  * 回调请求体（按接口文档格式）
- * { case_id, msg: "报告原文", report_create_time: "yyyy-MM-dd HH:mm:ss" }
- * 失败时 report_create_time 为 null
+ * 成功: { case_id, msg: { 4个分析字段 }, report_create_time: "yyyy-MM-dd HH:mm:ss" }
+ * 失败: { case_id, msg: "失败原因", report_create_time: null }
  */
 export interface CallbackPayload {
   case_id: string;
-  msg: string;
+  msg: ReportMsg | string;
   report_create_time: string | null;
 }
 
@@ -37,10 +49,10 @@ function sleep(ms: number): Promise<void> {
 export const callbackService = {
   /**
    * 通知上游系统（带重试机制）
-   * 成功回调: msg 为报告原文，report_create_time 为当前时间
-   * 失败回调: msg 为失败原因，report_create_time 为 null
+   * 成功回调: msg 为结构化报告对象，report_create_time 为当前时间
+   * 失败回调: msg 为失败原因字符串，report_create_time 为 null
    */
-  async notifyDownstream(callbackUrl: string, caseId: string, report: string | null, errorMsg: string | null): Promise<void> {
+  async notifyDownstream(callbackUrl: string, caseId: string, report: ReportMsg | null, errorMsg: string | null): Promise<void> {
     if (!callbackUrl) {
       logger.debug('callback_url 为空，跳过回调通知', { caseId });
       return;

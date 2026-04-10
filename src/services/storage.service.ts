@@ -3,6 +3,7 @@ import { taskRawModel } from '../models/task-raw.model';
 import { taskResultModel } from '../models/task-result.model';
 import { TASK_STATUS_TEXT, TaskStatusValue, DATA_TYPES } from '../config/constants';
 import { FormData } from '../schemas/submit.schema';
+import { ReportMsg } from './callback.service';
 
 export interface TaskDetail {
   taskId: string;
@@ -78,13 +79,13 @@ export const storageService = {
     taskId: string,
     agentId: string,
     rawResponse: unknown,
-    report: string
+    report: ReportMsg
   ): Promise<void> {
     await taskResultModel.create({
       taskId,
       agentId,
       resultContent: rawResponse,
-      report,
+      report: JSON.stringify(report),
     });
   },
 };

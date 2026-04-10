@@ -4,18 +4,21 @@ import { AgentError } from '../utils/errors';
 import { ERROR_CODES } from '../config/constants';
 import { createModuleLogger } from '../utils/logger';
 import { FormData } from '../schemas/submit.schema';
+import { ReportMsg } from './callback.service';
 
 const logger = createModuleLogger('agent');
 
 /**
  * AW 智能体返回结果
- * flowise prediction 端点返回的是报告文本（msg 字段用于回调）
+ * 智能体经过分支处理后返回结构化报告:
+ * - 排除案例: 只有 analysis_report 有内容
+ * - 风险案例: 四个字段都有内容
  */
 export interface AgentInvokeResult {
   /** AW 智能体返回的完整原始响应 */
   rawResponse: unknown;
-  /** 报告文本（回调时作为 msg 使用） */
-  report: string;
+  /** 结构化报告对象（回调时作为 msg 使用） */
+  report: ReportMsg;
 }
 
 export const agentService = {
@@ -46,15 +49,8 @@ export const agentService = {
       const result = response.data;
       logger.info('AW智能体调用成功', { taskId });
 
-      // flowise 返回的可能是字符串或对象，统一处理
-      let report: string;
-      if (typeof result === 'string') {
-        report = result;
-      } else if (result && typeof result === 'object') {
-        report = result.text ?? result.msg ?? result.report ?? JSON.stringify(result);
-      } else {
-        report = String(result);
-      }
+      // 解析智能体返回为结构化 ReportMsg
+      const report = parseReportMsg(result);
 
       return {
         rawResponse: result,
@@ -93,4 +89,82 @@ function classifyError(err: AxiosError): { code: string; retryable: boolean } {
   }
 
   return { code: 'ERR_UNKNOWN', retryable: true };
+}
+
+/**
+ * 将智能体返回结果解析为结构化 ReportMsg
+ * 智能体经过分支后:
+ * - 排除案例: 只有 analysis_report
+ * - 风险案例: 四个字段都有内容
+ *
+ * 兼容多种返回格式:
+ * 1. 对象中直接包含 analysis_report 字段 → 提取四字段
+ * 2. 嵌套在 text/msg/report 键下的 JSON 字符串 → 先解析再提取
+ * 3. 纯字符串 → 尝试 JSON 解析，失败则整体作为 analysis_report
+ */
+function parseReportMsg(result: unknown): ReportMsg {
+  const empty: ReportMsg = {
+    customer_behavior_analysis: '',
+    account_transaction_analysis: '',
+    doubtful_point_analysis: '',
+    analysis_report: '',
+  };
+
+  function extractFromObj(obj: Record<string, unknown>): ReportMsg {
+    return {
+      customer_behavior_analysis: String(obj.customer_behavior_analysis ?? ''),
+      account_transaction_analysis: String(obj.account_transaction_analysis ?? ''),
+      doubtful_point_analysis: String(obj.doubtful_point_analysis ?? ''),
+      analysis_report: String(obj.analysis_report ?? ''),
+    };
+  }
+
+  function tryParseJson(str: string): Record<string, unknown> | null {
+    try {
+      const parsed = JSON.parse(str);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // 非 JSON 字符串
+    }
+    return null;
+  }
+
+  if (result && typeof result === 'object' && !Array.isArray(result)) {
+    const obj = result as Record<string, unknown>;
+
+    // 对象直接包含 analysis_report 字段，认为是结构化报告
+    if ('analysis_report' in obj) {
+      return extractFromObj(obj);
+    }
+
+    // 可能嵌套在 text / msg / report 键下（flowise 常见格式）
+    const nested = obj.text ?? obj.msg ?? obj.report;
+    if (typeof nested === 'string') {
+      const parsed = tryParseJson(nested);
+      if (parsed && 'analysis_report' in parsed) {
+        return extractFromObj(parsed);
+      }
+      return { ...empty, analysis_report: nested };
+    }
+    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+      const nestedObj = nested as Record<string, unknown>;
+      if ('analysis_report' in nestedObj) {
+        return extractFromObj(nestedObj);
+      }
+    }
+
+    return { ...empty, analysis_report: JSON.stringify(result) };
+  }
+
+  if (typeof result === 'string') {
+    const parsed = tryParseJson(result);
+    if (parsed && 'analysis_report' in parsed) {
+      return extractFromObj(parsed);
+    }
+    return { ...empty, analysis_report: result };
+  }
+
+  return { ...empty, analysis_report: String(result) };
 }

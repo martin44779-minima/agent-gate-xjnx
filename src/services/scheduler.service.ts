@@ -72,7 +72,7 @@ export const schedulerService = {
 
       logger.info('任务处理完成', { taskId, caseId: task.case_id });
 
-      // 回调上游 — 成功: { case_id, msg: "报告原文", report_create_time }
+      // 回调上游 — 成功: { case_id, msg: { 4个分析字段 }, report_create_time }
       if (task.callback_url && task.case_id) {
         await callbackService.notifyDownstream(
           task.callback_url,

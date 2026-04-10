@@ -266,7 +266,8 @@ curl http://localhost:3000/api/v1/aml/task/{taskId}
 2. 服务立即返回 { code: 0, msg: "success", case_id }
 3. 后台异步调用 AW 智能体处理
 4. AW 返回报告后，服务回调 callback_url：
-   成功: { case_id, msg: "报告原文", report_create_time: "yyyy-MM-dd HH:mm:ss" }
+   成功（风险案例）: { case_id, msg: { customer_behavior_analysis, account_transaction_analysis, doubtful_point_analysis, analysis_report }, report_create_time: "yyyy-MM-dd HH:mm:ss" }
+   成功（排除案例）: { case_id, msg: { analysis_report: "..." }, report_create_time: "yyyy-MM-dd HH:mm:ss" }（其余三字段为空字符串）
    失败: { case_id, msg: "失败原因", report_create_time: null }
 5. 上游系统需返回: { code: 1, msg: "回调接收成功" }
 6. 若回调失败（网络异常或上游返回 code!=1），系统会重试最多 3 次
