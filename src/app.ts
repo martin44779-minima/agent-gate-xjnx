@@ -4,6 +4,7 @@ import cors from 'cors';
 import compression from 'compression';
 import routes from './routes';
 import { requestLogger } from './middleware/request-logger';
+import { rateLimitMiddleware } from './middleware/rate-limit';
 import { authMiddleware } from './middleware/auth';
 import { ipWhitelistMiddleware } from './middleware/ip-whitelist';
 import { errorHandler } from './middleware/error-handler';
@@ -21,6 +22,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(requestLogger);
 
 // 安全中间件（健康检查不需要认证）
+app.use('/api', rateLimitMiddleware);
 app.use('/api', ipWhitelistMiddleware);
 app.use('/api', authMiddleware);
 

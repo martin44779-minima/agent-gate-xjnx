@@ -43,6 +43,14 @@ export const taskMainModel = {
     return rows[0] || null;
   },
 
+  async findByCaseIdWithin(caseId: string, hours: number): Promise<TaskMainRow | null> {
+    const { rows } = await query<TaskMainRow>(
+      `SELECT * FROM task_main WHERE case_id = $1 AND create_time > NOW() - INTERVAL '${hours} hours' LIMIT 1`,
+      [caseId]
+    );
+    return rows[0] || null;
+  },
+
   async updateStatus(taskId: string, params: UpdateStatusParams): Promise<TaskMainRow | null> {
     const fields: string[] = ['task_status = $2'];
     const values: unknown[] = [taskId, params.taskStatus];

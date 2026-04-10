@@ -50,6 +50,13 @@ const config = {
     ipWhitelist: optionalEnv('IP_WHITELIST', '').split(',').filter(Boolean),
     signatureSecret: optionalEnv('SIGNATURE_SECRET', ''),
   },
+  dedup: {
+    windowHours: parseInt(optionalEnv('DEDUP_WINDOW_HOURS', '24'), 10),
+  },
+  rateLimit: {
+    windowMs: parseInt(optionalEnv('RATE_LIMIT_WINDOW_MS', '60000'), 10),
+    max: parseInt(optionalEnv('RATE_LIMIT_MAX', '60'), 10),
+  },
 };
 
 export default config;

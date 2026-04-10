@@ -1,7 +1,9 @@
 import { getClient } from '../database/pool';
+import { taskMainModel } from '../models/task-main.model';
 import { generateUUID, calcByteSize } from '../utils/helpers';
 import { generateChecksum } from '../utils/crypto';
 import { DATA_TYPES } from '../config/constants';
+import config from '../config';
 import { createModuleLogger } from '../utils/logger';
 import { SubmitRequestBody } from '../schemas/submit.schema';
 import eventBus from './event-bus';
@@ -17,6 +19,17 @@ export interface SubmitResult {
 export const gatewayService = {
   async submit(body: SubmitRequestBody): Promise<SubmitResult> {
     const { form, case_id: caseId, callback_url: callbackUrl } = body;
+
+    // case_id 去重检查（时间窗口内不允许重复提交）
+    const existing = await taskMainModel.findByCaseIdWithin(caseId, config.dedup.windowHours);
+    if (existing) {
+      logger.warn('重复提交被拒绝', { caseId, existingTaskId: existing.task_id });
+      return {
+        code: 1,
+        msg: `重复提交：该case_id在${config.dedup.windowHours}小时内已提交`,
+        case_id: caseId,
+      };
+    }
 
     // 生成内部 taskId
     const taskId = generateUUID();
