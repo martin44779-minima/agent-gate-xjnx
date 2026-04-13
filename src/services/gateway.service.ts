@@ -3,7 +3,6 @@ import { taskMainModel } from '../models/task-main.model';
 import { generateUUID, calcByteSize } from '../utils/helpers';
 import { generateChecksum } from '../utils/crypto';
 import { DATA_TYPES } from '../config/constants';
-import config from '../config';
 import { createModuleLogger } from '../utils/logger';
 import { SubmitRequestBody } from '../schemas/submit.schema';
 import eventBus from './event-bus';
@@ -13,21 +12,27 @@ const logger = createModuleLogger('gateway');
 export interface SubmitResult {
   code: number;
   msg: string;
-  case_id: string;
+  request_id: string;
 }
 
 export const gatewayService = {
   async submit(body: SubmitRequestBody): Promise<SubmitResult> {
-    const { form, case_id: caseId, callback_url: callbackUrl } = body;
+    const {
+      form,
+      request_id: requestId,
+      request_type: requestType,
+      system_id: systemId,
+      callback_url: callbackUrl,
+    } = body;
 
-    // case_id 去重检查（时间窗口内不允许重复提交）
-    const existing = await taskMainModel.findByCaseIdWithin(caseId, config.dedup.windowHours);
+    // 防重检查：同 request_id + 同 request_type 存在活跃任务时拒绝
+    const existing = await taskMainModel.findActiveByRequestIdAndType(requestId, requestType);
     if (existing) {
-      logger.warn('重复提交被拒绝', { caseId, existingTaskId: existing.task_id });
+      logger.warn('重复提交被拒绝', { requestId, requestType, existingTaskId: existing.task_id });
       return {
         code: 1,
-        msg: `重复提交：该case_id在${config.dedup.windowHours}小时内已提交`,
-        case_id: caseId,
+        msg: '重复提交：该request_id的同类型任务正在处理中',
+        request_id: requestId,
       };
     }
 
@@ -41,9 +46,9 @@ export const gatewayService = {
 
       // 插入主任务记录
       await client.query(
-        `INSERT INTO task_main (task_id, case_id, callback_url, task_status, retry_count)
-         VALUES ($1, $2, $3, 0, 0)`,
-        [taskId, caseId, callbackUrl]
+        `INSERT INTO task_main (task_id, request_id, request_type, system_id, callback_url, task_status, retry_count)
+         VALUES ($1, $2, $3, $4, $5, 0, 0)`,
+        [taskId, requestId, requestType, systemId, callbackUrl]
       );
 
       // 将整体 form 数据作为原始数据存储
@@ -58,7 +63,7 @@ export const gatewayService = {
       );
 
       await client.query('COMMIT');
-      logger.info('任务创建成功', { taskId, caseId });
+      logger.info('任务创建成功', { taskId, requestId });
     } catch (err) {
       await client.query('ROLLBACK');
       logger.error('任务创建失败，事务回滚', { taskId, error: (err as Error).message });
@@ -76,7 +81,7 @@ export const gatewayService = {
     return {
       code: 0,
       msg: 'success',
-      case_id: caseId,
+      request_id: requestId,
     };
   },
 };

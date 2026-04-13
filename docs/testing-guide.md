@@ -156,7 +156,7 @@ gsql -h 10.1.161.130 -p 8000 -U aw_user -d aw3 -f scripts/init-db.sql
 > ```
 
 建表脚本创建 3 张表：
-- `task_main` - 任务主表（含 case_id、callback_url）
+- `task_main` - 任务主表（含 request_id、request_type、system_id、callback_url）
 - `task_raw_data` - 原始数据表
 - `task_result` - 处理结果表
 
@@ -206,7 +206,9 @@ X-API-Key: test-key
 ```json
 {
   "callback_url": "http://your-system/api/aml/callback",
-  "case_id": "UP_20231027_001",
+  "request_id": "UP_20231027_001",
+  "request_type": "0",
+  "system_id": "AML_SYS_001",
   "form": {
     "customer_info": "...",
     "customer_account_info": "...",
@@ -245,16 +247,37 @@ curl -X POST http://localhost:3000/api/v1/aml/data/submit ^
 {
   "code": 0,
   "msg": "success",
-  "case_id": "TEST_CASE_001"
+  "request_id": "TEST_CASE_001"
 }
 ```
 
 ### 7.3 查询接口
 
-**GET** `/api/v1/aml/task/:taskId`
+**GET** `/api/v1/aml/task/:taskId`（内部任务查询）
 
 ```bash
 curl http://localhost:3000/api/v1/aml/task/{taskId}
+```
+
+**GET** `/api/cases/:systemId/:requestId?request_type={0/1}`（案例报告查询）
+
+```bash
+curl http://localhost:3000/api/cases/AML_SYS_001/UP_20231027_001?request_type=0
+```
+
+返回：
+```json
+{
+  "code": "1",
+  "request_id": "UP_20231027_001",
+  "report": {
+    "customer_behavior_analysis": "",
+    "account_transaction_analysis": "",
+    "doubtful_point_analysis": "",
+    "analysis_report": ""
+  },
+  "report_create_time": "2026-04-13 15:30:45"
+}
 ```
 
 ### 7.4 异步处理流程
@@ -263,25 +286,27 @@ curl http://localhost:3000/api/v1/aml/task/{taskId}
 
 ```
 1. 客户端 POST 提交数据
-2. 服务立即返回 { code: 0, msg: "success", case_id }
+2. 服务立即返回 { code: 0, msg: "success", request_id }
 3. 后台异步调用 AW 智能体处理
 4. AW 返回报告后，服务回调 callback_url：
-   成功（风险案例）: { case_id, msg: { customer_behavior_analysis, account_transaction_analysis, doubtful_point_analysis, analysis_report }, report_create_time: "yyyy-MM-dd HH:mm:ss" }
-   成功（排除案例）: { case_id, msg: { analysis_report: "..." }, report_create_time: "yyyy-MM-dd HH:mm:ss" }（其余三字段为空字符串）
-   失败: { case_id, msg: "失败原因", report_create_time: null }
-5. 上游系统需返回: { code: 1, msg: "回调接收成功" }
-6. 若回调失败（网络异常或上游返回 code!=1），系统会重试最多 3 次
-   重试间隔: 3秒 → 10秒 → 30秒
+   成功（风险案例）: { request_id, system_id, request_type, msg: { 4个分析字段 }, report_create_time }
+   成功（排除案例）: { request_id, system_id, request_type, msg: { analysis_report: "..." }, report_create_time }（其余三字段为空字符串）
+   失败: { request_id, system_id, request_type, msg: "失败原因", report_create_time: null }
+5. 上游系统需返回: { code: 0, msg: "回调接收成功" }
+6. 若回调失败（网络异常或上游返回 code!=0），系统会重试最多 3 次
+   重试间隔: 10秒 → 30秒 → 60秒
 ```
 
 ## 8. 请求体字段说明
 
-顶层共 3 个字段：
+顶层共 5 个字段：
 
 | 字段名 | 必填 | 类型 | 说明 |
 |--------|------|------|------|
 | `callback_url` | 是 | String | 异步处理完成后的回调地址，需为可访问的完整 URL |
-| `case_id` | 是 | String | 案例ID，由上游系统生成，必须全局唯一。建议格式：`{系统标识}_{日期}_{序列号}` |
+| `request_id` | 是 | String | 案例ID，由上游系统提供，必须全局唯一 |
+| `request_type` | 是 | String | 案例类型，"0"=排除，"1"=上报 |
+| `system_id` | 是 | String | 反洗钱系统分配的系统ID |
 | `form` | 是 | Object | 包含所有反洗钱业务数据的对象 |
 
 form 内共 10 个字段，全部为字符串类型：
@@ -336,19 +361,17 @@ docker run -d --name agent-gate -p 3000:3000 \
 
 ## 10. 防重复提交与接口限流
 
-### 10.1 case_id 去重
+### 10.1 request_id 去重
 
-同一 `case_id` 在时间窗口内（默认 24 小时）不允许重复提交，重复提交会返回：
+同一 `request_id` + 同一 `request_type` 在有活跃任务（待处理/处理中/重试中）时不允许重复提交，重复提交会返回：
 
 ```json
-{ "code": 1, "msg": "重复提交：该case_id在24小时内已提交", "case_id": "xxx" }
+{ "code": 1, "msg": "重复提交：该request_id的同类型任务正在处理中", "request_id": "xxx" }
 ```
 
-配置项：
-
-| 变量名 | 默认值 | 说明 |
-|-------|--------|------|
-| `DEDUP_WINDOW_HOURS` | `24` | 去重时间窗口（小时），同一 case_id 在此时间内不可重复提交 |
+注意：
+- 不同 `request_type` 的任务可以同时存在（如同一 request_id 的排除和上报可并行）
+- 上一次任务已完成或失败后，可以重新提交同一 request_id + request_type
 
 ### 10.2 接口限流
 
@@ -376,11 +399,11 @@ docker run -d --name agent-gate -p 3000:3000 \
 | 返回 `401 请求时间戳过期` | 签名时间戳偏差超过5分钟 | 确认客户端与服务器时间同步 |
 | 返回 `401 签名验证失败` | 签名不正确 | 检查签名算法或留空 `SIGNATURE_SECRET` 关闭签名校验 |
 | 返回 `403 IP 不在白名单中` | IP 被拦截 | 留空 `IP_WHITELIST` 关闭 IP 限制，或将客户端 IP 加入白名单 |
-| 返回 `400 校验失败` | 请求体格式不对 | 确认顶层有 `callback_url`、`case_id`、`form`，form 内必填字段齐全 |
+| 返回 `400 校验失败` | 请求体格式不对 | 确认顶层有 `callback_url`、`request_id`、`request_type`、`system_id`、`form`，form 内必填字段齐全 |
 | 启动报 `缺少必填环境变量: AW_AGENT_URL` | 旧配置名 | 用 `AW_AGENT_URL` 替代旧的 `AW_AGENT_BASE_URL` |
 | 回调未收到 | callback_url 不可达 | 确认 `callback_url` 地址可从服务端网络访问 |
 | AW 调用超时 | 模型推理时间长 | 调大 `AW_TIMEOUT_MS`（默认120秒） |
-| 返回 `code: 1` 重复提交 | 同一 case_id 24小时内已提交 | 更换 case_id 或等待去重窗口过期，可调整 `DEDUP_WINDOW_HOURS` |
+| 返回 `code: 1` 重复提交 | 同一 request_id + request_type 有活跃任务 | 等待当前任务完成后再提交 |
 | 返回 `429` 请求过于频繁 | 触发接口限流 | 降低请求频率，或调大 `RATE_LIMIT_MAX` |
 
 ## 12. 日志位置

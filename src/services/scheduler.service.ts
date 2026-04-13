@@ -68,15 +68,18 @@ export const schedulerService = {
         taskStatus: TASK_STATUS.COMPLETED,
         endTime,
         totalCostMs: calcCostMs(startTime, endTime),
+        nextRetryTime: null,
       });
 
-      logger.info('任务处理完成', { taskId, caseId: task.case_id });
+      logger.info('任务处理完成', { taskId, requestId: task.request_id });
 
-      // 回调上游 — 成功: { case_id, msg: { 4个分析字段 }, report_create_time }
-      if (task.callback_url && task.case_id) {
+      // 回调上游 — 成功
+      if (task.callback_url && task.request_id) {
         await callbackService.notifyDownstream(
           task.callback_url,
-          task.case_id,
+          task.request_id,
+          task.system_id || '',
+          task.request_type,
           result.report,
           null
         );
@@ -89,7 +92,7 @@ export const schedulerService = {
 
 async function handleProcessError(
   taskId: string,
-  task: { retry_count: number; callback_url: string | null; case_id: string | null },
+  task: { retry_count: number; callback_url: string | null; request_id: string | null; system_id: string | null; request_type: string },
   startTime: Date,
   err: Error
 ): Promise<void> {
@@ -98,9 +101,11 @@ async function handleProcessError(
   const newRetryCount = task.retry_count + 1;
 
   if (isRetryable && newRetryCount < config.retry.maxRetries) {
+    const nextRetryTime = new Date(Date.now() + config.retry.intervalMs);
     await taskMainModel.updateStatus(taskId, {
       taskStatus: TASK_STATUS.RETRYING,
       retryCount: newRetryCount,
+      nextRetryTime,
       lastErrorCode: errorCode,
       remark: `第${newRetryCount}次重试: ${err.message}`,
     });
@@ -110,6 +115,7 @@ async function handleProcessError(
       retryCount: newRetryCount,
       maxRetries: config.retry.maxRetries,
       nextRetryMs: config.retry.intervalMs,
+      nextRetryTime: nextRetryTime.toISOString(),
     });
 
     setTimeout(() => {
@@ -124,17 +130,20 @@ async function handleProcessError(
       endTime,
       totalCostMs: calcCostMs(startTime, endTime),
       retryCount: newRetryCount,
+      nextRetryTime: null,
       lastErrorCode: errorCode,
       remark: `最终失败: ${err.message}`,
     });
 
     logger.error('任务最终失败', { taskId, errorCode, retryCount: newRetryCount });
 
-    // 回调上游 — 失败: { case_id, msg: "失败原因", report_create_time: null }
-    if (task.callback_url && task.case_id) {
+    // 回调上游 — 失败
+    if (task.callback_url && task.request_id) {
       await callbackService.notifyDownstream(
         task.callback_url,
-        task.case_id,
+        task.request_id,
+        task.system_id || '',
+        task.request_type,
         null,
         err.message
       );

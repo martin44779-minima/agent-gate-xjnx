@@ -42,16 +42,13 @@ const config = {
   callback: {
     timeoutMs: parseInt(optionalEnv('CALLBACK_TIMEOUT_MS', '10000'), 10),
     retryMax: parseInt(optionalEnv('CALLBACK_RETRY_MAX', '3'), 10),
-    retryIntervals: optionalEnv('CALLBACK_RETRY_INTERVALS', '3000,10000,30000').split(',').map(Number),
+    retryIntervals: optionalEnv('CALLBACK_RETRY_INTERVALS', '10000,30000,60000').split(',').map(Number),
   },
   security: {
     authEnabled: optionalEnv('AUTH_ENABLED', 'false') === 'true',
     apiKeys: optionalEnv('ALLOWED_API_KEYS', '').split(',').filter(Boolean),
     ipWhitelist: optionalEnv('IP_WHITELIST', '').split(',').filter(Boolean),
     signatureSecret: optionalEnv('SIGNATURE_SECRET', ''),
-  },
-  dedup: {
-    windowHours: parseInt(optionalEnv('DEDUP_WINDOW_HOURS', '24'), 10),
   },
   rateLimit: {
     windowMs: parseInt(optionalEnv('RATE_LIMIT_WINDOW_MS', '60000'), 10),

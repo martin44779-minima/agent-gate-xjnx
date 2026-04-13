@@ -7,7 +7,9 @@ import { ReportMsg } from './callback.service';
 
 export interface TaskDetail {
   taskId: string;
-  caseId: string | null;
+  requestId: string | null;
+  requestType: string;
+  systemId: string | null;
   status: TaskStatusValue;
   statusText: string;
   createTime: Date;
@@ -19,6 +21,17 @@ export interface TaskDetail {
     report: string | null;
     rawResponse: unknown;
   } | null;
+}
+
+export interface CaseQueryResult {
+  requestId: string;
+  report: ReportMsg;
+  reportCreateTime: string;
+}
+
+function formatTimestamp(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 export const storageService = {
@@ -37,7 +50,9 @@ export const storageService = {
 
     return {
       taskId: task.task_id,
-      caseId: task.case_id,
+      requestId: task.request_id,
+      requestType: task.request_type,
+      systemId: task.system_id,
       status: task.task_status,
       statusText: TASK_STATUS_TEXT[task.task_status] || '未知',
       createTime: task.create_time,
@@ -64,14 +79,16 @@ export const storageService = {
   },
 
   /**
-   * 获取任务的 callback_url 和 case_id
+   * 获取任务的回调信息
    */
-  async getTaskCallbackInfo(taskId: string): Promise<{ callbackUrl: string | null; caseId: string | null } | null> {
+  async getTaskCallbackInfo(taskId: string): Promise<{ callbackUrl: string | null; requestId: string | null; systemId: string | null; requestType: string } | null> {
     const task = await taskMainModel.findByTaskId(taskId);
     if (!task) return null;
     return {
       callbackUrl: task.callback_url,
-      caseId: task.case_id,
+      requestId: task.request_id,
+      systemId: task.system_id,
+      requestType: task.request_type,
     };
   },
 
@@ -87,5 +104,33 @@ export const storageService = {
       resultContent: rawResponse,
       report: JSON.stringify(report),
     });
+  },
+
+  /**
+   * 按 system_id + request_id + request_type 查询最新已完成的案例报告
+   */
+  async getCompletedCaseReport(systemId: string, requestId: string, requestType: string): Promise<CaseQueryResult | null> {
+    const task = await taskMainModel.findCompletedBySystemAndRequestId(systemId, requestId, requestType);
+    if (!task) return null;
+
+    const taskResult = await taskResultModel.findByTaskId(task.task_id);
+    if (!taskResult || !taskResult.report) return null;
+
+    let report: ReportMsg;
+    try {
+      report = JSON.parse(taskResult.report) as ReportMsg;
+    } catch {
+      return null;
+    }
+
+    const reportCreateTime = task.end_time
+      ? formatTimestamp(task.end_time)
+      : formatTimestamp(task.create_time);
+
+    return {
+      requestId: task.request_id || requestId,
+      report,
+      reportCreateTime,
+    };
   },
 };

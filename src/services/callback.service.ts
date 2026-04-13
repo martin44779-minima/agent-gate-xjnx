@@ -17,19 +17,21 @@ export interface ReportMsg {
 }
 
 /**
- * 回调请求体（按接口文档格式）
- * 成功: { case_id, msg: { 4个分析字段 }, report_create_time: "yyyy-MM-dd HH:mm:ss" }
- * 失败: { case_id, msg: "失败原因", report_create_time: null }
+ * 回调请求体（按接口文档 v1.0 格式）
+ * 成功: { request_id, system_id, request_type, msg: { 4个分析字段 }, report_create_time }
+ * 失败: { request_id, system_id, request_type, msg: "失败原因", report_create_time: null }
  */
 export interface CallbackPayload {
-  case_id: string;
+  request_id: string;
+  system_id: string;
+  request_type: string;
   msg: ReportMsg | string;
   report_create_time: string | null;
 }
 
 /**
  * 上游回调响应格式
- * code=1 表示接收成功，code=0 表示接收失败
+ * code=0 表示接收成功，code=1 表示接收失败
  */
 interface CallbackResponse {
   code: number;
@@ -52,15 +54,24 @@ export const callbackService = {
    * 成功回调: msg 为结构化报告对象，report_create_time 为当前时间
    * 失败回调: msg 为失败原因字符串，report_create_time 为 null
    */
-  async notifyDownstream(callbackUrl: string, caseId: string, report: ReportMsg | null, errorMsg: string | null): Promise<void> {
+  async notifyDownstream(
+    callbackUrl: string,
+    requestId: string,
+    systemId: string,
+    requestType: string,
+    report: ReportMsg | null,
+    errorMsg: string | null
+  ): Promise<void> {
     if (!callbackUrl) {
-      logger.debug('callback_url 为空，跳过回调通知', { caseId });
+      logger.debug('callback_url 为空，跳过回调通知', { requestId });
       return;
     }
 
     const isSuccess = report !== null;
     const payload: CallbackPayload = {
-      case_id: caseId,
+      request_id: requestId,
+      system_id: systemId,
+      request_type: requestType,
       msg: isSuccess ? report : (errorMsg || '未知错误'),
       report_create_time: isSuccess ? formatTimestamp() : null,
     };
@@ -77,15 +88,15 @@ export const callbackService = {
 
         const respData = response.data;
 
-        // 上游返回 code=1 表示接收成功
-        if (respData && respData.code === 1) {
-          logger.info('回调通知成功', { caseId, url: callbackUrl, attempt });
+        // 上游返回 code=0 表示接收成功
+        if (respData && respData.code === 0) {
+          logger.info('回调通知成功', { requestId, url: callbackUrl, attempt });
           return;
         }
 
-        // 上游返回 code!=1，视为业务拒绝，记录后重试
+        // 上游返回 code!=0，视为业务拒绝，记录后重试
         logger.warn('回调被上游拒绝', {
-          caseId,
+          requestId,
           url: callbackUrl,
           attempt,
           respCode: respData?.code,
@@ -93,7 +104,7 @@ export const callbackService = {
         });
       } catch (err) {
         logger.warn('回调请求失败', {
-          caseId,
+          requestId,
           url: callbackUrl,
           attempt,
           error: (err as Error).message,
@@ -103,13 +114,13 @@ export const callbackService = {
       // 最后一次不再等待
       if (attempt < maxRetries) {
         const waitMs = retryIntervals[attempt] || retryIntervals[retryIntervals.length - 1];
-        logger.info('回调重试等待', { caseId, attempt: attempt + 1, waitMs });
+        logger.info('回调重试等待', { requestId, attempt: attempt + 1, waitMs });
         await sleep(waitMs);
       }
     }
 
     logger.error('回调最终失败，已达最大重试次数', {
-      caseId,
+      requestId,
       url: callbackUrl,
       maxRetries,
     });
