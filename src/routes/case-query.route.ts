@@ -3,6 +3,6 @@ import { caseQueryController } from '../controllers/case-query.controller';
 
 const router = Router();
 
-router.get('/api/cases/:systemId/:requestId', caseQueryController);
+router.post('/api/cases/query', caseQueryController);
 
 export default router;
