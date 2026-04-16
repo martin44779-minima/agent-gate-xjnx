@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import routes from './routes';
+import { normalizeRequestBody } from './middleware/normalize-request';
 import { requestLogger } from './middleware/request-logger';
 import { rateLimitMiddleware } from './middleware/rate-limit';
 import { authMiddleware } from './middleware/auth';
@@ -28,6 +29,9 @@ app.use((req, _res, next) => {
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// ESB 包裹格式解包：检测 sysHead+body 并转换为内部 snake_case 格式
+app.use(normalizeRequestBody);
 
 // 请求日志
 app.use(requestLogger);

@@ -202,6 +202,8 @@ Content-Type: application/json
 X-API-Key: test-key
 ```
 
+#### 方式一：直连格式（扁平 snake_case）
+
 请求体格式：
 ```json
 {
@@ -211,15 +213,7 @@ X-API-Key: test-key
   "system_id": "AML_SYS_001",
   "form": {
     "customer_info": "...",
-    "customer_account_info": "...",
-    "bank_statement_info": "...",
-    "feature_info": "...",
-    "summery_info": "...",
-    "feature_statement_info": "",
-    "history_case_info": "",
-    "doubt_exclusion_reasons_info": "",
-    "due_diligence_info": "",
-    "history_rating_info": "..."
+    ...
   }
 }
 ```
@@ -234,13 +228,32 @@ curl -X POST http://localhost:3000/api/v1/aml/data/submit \
   -d @test/fixtures/sample-submit.json
 ```
 
-**Windows cmd：**
-```cmd
-curl -X POST http://localhost:3000/api/v1/aml/data/submit ^
-  -H "Content-Type: application/json" ^
-  -H "X-API-Key: test-key" ^
-  -d @test/fixtures/sample-submit.json
+#### 方式二：ESB 包裹格式（sysHead + body 驼峰）
+
+当请求通过 ESB 网关转发时，业务参数会被包装在 `body` 字段内，字段名为驼峰命名。系统会自动检测并解包，**无需手动转换**：
+
+```json
+{
+  "sysHead": { "svcCd": "50012N0040", "scnCd": "13", ... },
+  "body": {
+    "callbackUrl": "http://your-system/api/aml/callback",
+    "requestId": "UP_20231027_001",
+    "requestType": "0",
+    "systemId": "AML_SYS_001",
+    "form": { ... }
+  }
+}
 ```
+
+使用 ESB 格式测试数据：
+```bash
+curl -X POST http://localhost:3000/api/v1/aml/data/submit \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: test-key" \
+  -d @test/fixtures/sample-submit-esb.json
+```
+
+> **两种格式返回结果一致**，系统内部统一使用 snake_case 处理。
 
 返回（异步接收成功）：
 ```json
@@ -253,16 +266,13 @@ curl -X POST http://localhost:3000/api/v1/aml/data/submit ^
 
 ### 7.3 查询接口
 
-**GET** `/api/v1/aml/task/:taskId`（内部任务查询）
+**POST** `/api/cases/query`
 
 ```bash
-curl http://localhost:3000/api/v1/aml/task/{taskId}
-```
-
-**GET** `/api/cases/:systemId/:requestId?request_type={0/1}`（案例报告查询）
-
-```bash
-curl http://localhost:3000/api/cases/AML_SYS_001/UP_20231027_001?request_type=0
+curl -X POST http://localhost:3000/api/cases/query \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: test-key" \
+  -d '{"system_id":"AML_SYS_001","request_id":"UP_20231027_001","request_type":"0"}'
 ```
 
 返回：
@@ -278,6 +288,12 @@ curl http://localhost:3000/api/cases/AML_SYS_001/UP_20231027_001?request_type=0
   },
   "report_create_time": "2026-04-13 15:30:45"
 }
+```
+
+**GET** `/api/v1/aml/task/:taskId`（内部任务查询）
+
+```bash
+curl http://localhost:3000/api/v1/aml/task/{taskId}
 ```
 
 ### 7.4 异步处理流程
@@ -405,6 +421,7 @@ docker run -d --name agent-gate -p 3000:3000 \
 | AW 调用超时 | 模型推理时间长 | 调大 `AW_TIMEOUT_MS`（默认120秒） |
 | 返回 `code: 1` 重复提交 | 同一 request_id + request_type 有活跃任务 | 等待当前任务完成后再提交 |
 | 返回 `429` 请求过于频繁 | 触发接口限流 | 降低请求频率，或调大 `RATE_LIMIT_MAX` |
+| 通过 ESB 调用报 `UnsupportedMediaTypeError` | ESB 设置了 `Content-Encoding: utf-8` | 已内置中间件自动移除该错误头，升级后生效 |
 
 ## 12. 日志位置
 
