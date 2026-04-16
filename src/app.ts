@@ -15,6 +15,17 @@ const app = express();
 app.use(helmet());
 app.use(cors());
 app.use(compression());
+
+// 修正 ESB 网关错误设置 Content-Encoding: utf-8 的问题
+// Content-Encoding 应为压缩算法(gzip/deflate/br)，字符编码应在 Content-Type charset 中指定
+app.use((req, _res, next) => {
+  const encoding = req.headers['content-encoding'];
+  if (encoding && encoding.toLowerCase() === 'utf-8') {
+    delete req.headers['content-encoding'];
+  }
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
