@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS task_main (
   retry_count INT NOT NULL DEFAULT 0,
   next_retry_time TIMESTAMP,
   last_error_code VARCHAR(50),
+  esb_sys_head JSONB,
+  cnsmr_sys_no VARCHAR(64),
+  callback_path VARCHAR(500),
   remark VARCHAR(500)
 );
 
@@ -37,6 +40,9 @@ COMMENT ON COLUMN task_main.total_cost_ms IS '任务总耗时（毫秒）';
 COMMENT ON COLUMN task_main.retry_count IS '已重试次数';
 COMMENT ON COLUMN task_main.next_retry_time IS '下次重试预计执行时间';
 COMMENT ON COLUMN task_main.last_error_code IS '最后一次错误代码';
+COMMENT ON COLUMN task_main.esb_sys_head IS 'ESB系统头信息（上游传入原始JSON，回调时组装回传）';
+COMMENT ON COLUMN task_main.cnsmr_sys_no IS '消费者系统号（回调时用于生成cnsmrSrlNo）';
+COMMENT ON COLUMN task_main.callback_path IS '回调路径（文根，需与ESB_CALLBACK_BASE_URL拼接为完整URL）';
 COMMENT ON COLUMN task_main.remark IS '备注信息（含重试和失败原因）';
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_task_main_task_id ON task_main(task_id);
@@ -107,3 +113,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_task_result_task_id ON task_result(task_id
 -- COMMENT ON COLUMN task_main.request_type IS '案例类型：0-排除，1-上报';
 -- COMMENT ON COLUMN task_main.system_id IS '反洗钱系统分配的系统ID';
 -- COMMENT ON COLUMN task_main.next_retry_time IS '下次重试预计执行时间';
+-- ALTER TABLE task_main ADD COLUMN esb_sys_head JSONB;
+-- ALTER TABLE task_main ADD COLUMN cnsmr_sys_no VARCHAR(64);
+-- ALTER TABLE task_main ADD COLUMN callback_path VARCHAR(500);
+-- COMMENT ON COLUMN task_main.esb_sys_head IS 'ESB系统头信息（上游传入原始JSON，回调时组装回传）';
+-- COMMENT ON COLUMN task_main.cnsmr_sys_no IS '消费者系统号（回调时用于生成cnsmrSrlNo）';
+-- COMMENT ON COLUMN task_main.callback_path IS '回调路径（文根，需与ESB_CALLBACK_BASE_URL拼接为完整URL）';

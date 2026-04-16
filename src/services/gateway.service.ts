@@ -15,8 +15,13 @@ export interface SubmitResult {
   request_id: string;
 }
 
+export interface SubmitInput {
+  body: SubmitRequestBody;
+  esbSysHead?: Record<string, unknown>;
+}
+
 export const gatewayService = {
-  async submit(body: SubmitRequestBody): Promise<SubmitResult> {
+  async submit({ body, esbSysHead }: SubmitInput): Promise<SubmitResult> {
     const {
       form,
       request_id: requestId,
@@ -36,8 +41,9 @@ export const gatewayService = {
       };
     }
 
-    // 生成内部 taskId
+    // 生成内部 taskId 和消费者系统号
     const taskId = generateUUID();
+    const cnsmrSysNo = `AI_${systemId}_${Date.now()}`;
 
     // 数据库事务 — 插入主任务 + 原始数据
     const client = await getClient();
@@ -45,10 +51,11 @@ export const gatewayService = {
       await client.query('BEGIN');
 
       // 插入主任务记录
+      // callback_url 列存文根路径，回调时与 ESB_CALLBACK_BASE_URL 拼接
       await client.query(
-        `INSERT INTO task_main (task_id, request_id, request_type, system_id, callback_url, task_status, retry_count)
-         VALUES ($1, $2, $3, $4, $5, 0, 0)`,
-        [taskId, requestId, requestType, systemId, callbackUrl]
+        `INSERT INTO task_main (task_id, request_id, request_type, system_id, callback_url, esb_sys_head, cnsmr_sys_no, callback_path, task_status, retry_count)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, 0)`,
+        [taskId, requestId, requestType, systemId, callbackUrl, esbSysHead ? JSON.stringify(esbSysHead) : null, cnsmrSysNo, callbackUrl]
       );
 
       // 将整体 form 数据作为原始数据存储

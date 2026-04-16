@@ -1,0 +1,39 @@
+{
+  "_description": "ESB 回调格式预期输出示例 (ESB_CALLBACK_ENABLED=true)",
+  "sysHead": {
+    "svcCd": "50012N0040",
+    "scnCd": "13",
+    "chnlTp": "GM",
+    "lglPrsnCd": "",
+    "branchId": "XXXXXX",
+    "tlrNo": "XXXXXX",
+    "cnsmrSysNoInd": "LMAP",
+    "cnsmrSysNo": "100101",
+    "orgnlCnsmrSysNo": "LMAP",
+    "txnDt": "20260416",
+    "txnTm": "103045",
+    "cnsmrSrlNo": "AI_100101_20260416103045",
+    "glblSrlNo": "NCTS202307151022560000000000120000000010",
+    "tmlIdNo": "999999",
+    "mac": "",
+    "sgntrVerfSgntr": "",
+    "stdIntfVerNo": "",
+    "usrLng": "CHINESE",
+    "fileFlg": "0",
+    "filePath": "",
+    "sysPrestoreFlgStrg": "",
+    "sysPrestoreCharStrg": ""
+  },
+  "body": {
+    "requestId": "case-001",
+    "systemId": "NAML",
+    "requestType": "0",
+    "msg": {
+      "customer_behavior_analysis": "客户行为分析内容...",
+      "account_transaction_analysis": "账户交易分析内容...",
+      "doubtful_point_analysis": "疑点分析内容...",
+      "analysis_report": "综合分析报告内容..."
+    },
+    "reportCreateTime": "2026-04-16 10:30:45"
+  }
+}

@@ -5,7 +5,10 @@ import { SubmitRequestBody } from '../schemas/submit.schema';
 export async function submitController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const body = req.body as SubmitRequestBody;
-    const result = await gatewayService.submit(body);
+    const result = await gatewayService.submit({
+      body,
+      esbSysHead: (req.body as any)._esb_meta?.sysHead,
+    });
     res.status(200).json(result);
   } catch (err) {
     next(err);

@@ -8,7 +8,7 @@
     "glblSrlNo": "NCTS202307151022560000000000120000000010"
   },
   "body": {
-    "callbackUrl": "http://localhost:9999/callback",
+    "callbackUrl": "/aml-api/permitall/callback/ai/caseReport",
     "requestId": "TEST_CASE_001",
     "requestType": "0",
     "systemId": "NAML",

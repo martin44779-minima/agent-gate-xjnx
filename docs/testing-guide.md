@@ -50,7 +50,15 @@ cp .env.example .env
 | `RETRY_INTERVAL_MS` | `30000` | 重试间隔（毫秒） |
 | `CALLBACK_TIMEOUT_MS` | `10000` | 回调超时（毫秒） |
 
-### 3.3 安全认证相关
+### 3.3 ESB 回调配置
+
+| 变量名 | 默认值 | 说明 |
+|-------|--------|------|
+| `ESB_CALLBACK_ENABLED` | `false` | 是否启用 ESB 回调格式（`true`=包裹sysHead+body，`false`=直连snake_case） |
+| `ESB_CNSMR_SYS_NO_IND` | `LMAP` | ESB sysHead 中 cnsmrSysNoInd 字段值 |
+| `ESB_ORGNL_CNSMR_SYS_NO` | `LMAP` | ESB sysHead 中 orgnlCnsmrSysNo 字段值 |
+
+### 3.4 安全认证相关
 
 | 变量名 | 默认值 | 说明 |
 |-------|--------|------|
@@ -58,7 +66,7 @@ cp .env.example .env
 | `IP_WHITELIST` | 空 | IP 白名单，逗号分隔，为空不限制 |
 | `SIGNATURE_SECRET` | 空 | HMAC-SHA256 签名密钥，**为空时不校验签名**，测试建议留空 |
 
-### 3.4 测试用 .env 完整示例
+### 3.5 测试用 .env 完整示例
 
 ```env
 PORT=3000
@@ -305,13 +313,62 @@ curl http://localhost:3000/api/v1/aml/task/{taskId}
 2. 服务立即返回 { code: 0, msg: "success", request_id }
 3. 后台异步调用 AW 智能体处理
 4. AW 返回报告后，服务回调 callback_url：
-   成功（风险案例）: { request_id, system_id, request_type, msg: { 4个分析字段 }, report_create_time }
-   成功（排除案例）: { request_id, system_id, request_type, msg: { analysis_report: "..." }, report_create_time }（其余三字段为空字符串）
-   失败: { request_id, system_id, request_type, msg: "失败原因", report_create_time: null }
+   直连模式: { request_id, system_id, request_type, msg: { 4个分析字段 }, report_create_time }
+   ESB模式: { sysHead: { ... }, body: { requestId, systemId, requestType, msg: { 4个分析字段 }, reportCreateTime } }
 5. 上游系统需返回: { code: 0, msg: "回调接收成功" }
 6. 若回调失败（网络异常或上游返回 code!=0），系统会重试最多 3 次
    重试间隔: 10秒 → 30秒 → 60秒
 ```
+
+### 7.5 ESB 回调格式
+
+当 `ESB_CALLBACK_ENABLED=true` 时，回调会以 ESB 包裹格式发送：
+
+```json
+{
+  "sysHead": {
+    "svcCd": "上游接口提供",
+    "scnCd": "上游接口提供",
+    "chnlTp": "上游接口提供",
+    "lglPrsnCd": "",
+    "branchId": "上游接口提供",
+    "tlrNo": "上游接口提供",
+    "cnsmrSysNoInd": "配置项提供(ESB_CNSMR_SYS_NO_IND)",
+    "cnsmrSysNo": "上游接口提供",
+    "orgnlCnsmrSysNo": "配置项提供(ESB_ORGNL_CNSMR_SYS_NO)",
+    "txnDt": "回调时动态生成(YYYYMMDD)",
+    "txnTm": "回调时动态生成(HHmmss)",
+    "cnsmrSrlNo": "AI_{cnsmrSysNo}_{YYYYMMDDHHmmss}",
+    "glblSrlNo": "上游接口提供",
+    "tmlIdNo": "上游接口提供",
+    "mac": "上游接口提供",
+    "sgntrVerfSgntr": "上游接口提供",
+    "stdIntfVerNo": "上游接口提供",
+    "usrLng": "上游接口提供",
+    "fileFlg": "上游接口提供",
+    "filePath": "上游接口提供",
+    "sysPrestoreFlgStrg": "上游接口提供",
+    "sysPrestoreCharStrg": "上游接口提供"
+  },
+  "body": {
+    "requestId": "case-001",
+    "systemId": "NAML",
+    "requestType": "0",
+    "msg": {
+      "customer_behavior_analysis": "",
+      "account_transaction_analysis": "",
+      "doubtful_point_analysis": "",
+      "analysis_report": ""
+    },
+    "reportCreateTime": "2026-04-16 10:30:45"
+  }
+}
+```
+
+**sysHead 来源说明：**
+- "上游接口提供" — 从提交时 ESB 入参的 sysHead 中原样回传
+- "配置项提供" — 从环境变量 `ESB_CNSMR_SYS_NO_IND` / `ESB_ORGNL_CNSMR_SYS_NO` 读取
+- "回调时动态生成" — `txnDt`/`txnTm` 取回调时刻时间，`cnsmrSrlNo` 按 `AI_{cnsmrSysNo}_{YYYYMMDDHHmmss}` 规则生成
 
 ## 8. 请求体字段说明
 

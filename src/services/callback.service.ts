@@ -17,9 +17,7 @@ export interface ReportMsg {
 }
 
 /**
- * 回调请求体（按接口文档 v1.0 格式）
- * 成功: { request_id, system_id, request_type, msg: { 4个分析字段 }, report_create_time }
- * 失败: { request_id, system_id, request_type, msg: "失败原因", report_create_time: null }
+ * 直连回调请求体（snake_case 平铺）
  */
 export interface CallbackPayload {
   request_id: string;
@@ -27,6 +25,20 @@ export interface CallbackPayload {
   request_type: string;
   msg: ReportMsg | string;
   report_create_time: string | null;
+}
+
+/**
+ * ESB 回调请求体（{ sysHead, body } 包裹，body 内驼峰）
+ */
+interface EsbCallbackPayload {
+  sysHead: Record<string, unknown>;
+  body: {
+    requestId: string;
+    systemId: string;
+    requestType: string;
+    msg: ReportMsg | string;
+    reportCreateTime: string | null;
+  };
 }
 
 /**
@@ -44,8 +56,72 @@ function formatTimestamp(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+function formatDateTimeCompact(): { date: string; time: string; full: string } {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const date = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const time = `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  const full = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return { date, time, full };
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * 构建 ESB sysHead（混合来源：配置项 + 上游传入 + 环境变量 + 动态生成）
+ */
+function buildEsbSysHead(
+  upstreamSysHead: Record<string, unknown> | null,
+  cnsmrSysNo: string | null
+): Record<string, unknown> {
+  const now = formatDateTimeCompact();
+  const cnsmrSrlNo = `AI_${cnsmrSysNo || 'unknown'}_${now.date}${now.time}`;
+
+  return {
+    // svcCd 从配置项获取
+    svcCd: config.esb.callbackSvcCd,
+    scnCd: upstreamSysHead?.scnCd || '',
+    chnlTp: upstreamSysHead?.chnlTp || '',
+    lglPrsnCd: '',
+    branchId: upstreamSysHead?.branchId || '',
+    tlrNo: upstreamSysHead?.tlrNo || '',
+    cnsmrSysNoInd: config.esb.cnsmrSysNoInd,
+    cnsmrSysNo: upstreamSysHead?.cnsmrSysNo || '',
+    orgnlCnsmrSysNo: config.esb.orgnlCnsmrSysNo,
+    txnDt: now.date,
+    txnTm: now.time,
+    cnsmrSrlNo,
+    glblSrlNo: upstreamSysHead?.glblSrlNo || '',
+    tmlIdNo: upstreamSysHead?.tmlIdNo || '',
+    mac: upstreamSysHead?.mac || '',
+    sgntrVerfSgntr: upstreamSysHead?.sgntrVerfSgntr || '',
+    stdIntfVerNo: upstreamSysHead?.stdIntfVerNo || '',
+    usrLng: upstreamSysHead?.usrLng || '',
+    fileFlg: upstreamSysHead?.fileFlg || '',
+    filePath: upstreamSysHead?.filePath || '',
+    sysPrestoreFlgStrg: upstreamSysHead?.sysPrestoreFlgStrg || '',
+    sysPrestoreCharStrg: upstreamSysHead?.sysPrestoreCharStrg || '',
+  };
+}
+
+/**
+ * 构建完整的回调 URL
+ * ESB 模式: ESB_CALLBACK_BASE_URL + callbackPath
+ * 直连模式: 直接返回 callbackPath（此时应为完整 URL）
+ */
+function buildCallbackUrl(callbackPath: string | null): string | null {
+  if (!callbackPath) return null;
+
+  if (config.callback.esbEnabled && config.esb.callbackBaseUrl) {
+    // 拼接 base URL + 文根路径
+    const base = config.esb.callbackBaseUrl.replace(/\/$/, '');
+    const path = callbackPath.startsWith('/') ? callbackPath : `/${callbackPath}`;
+    return `${base}${path}`;
+  }
+
+  return callbackPath;
 }
 
 export const callbackService = {
@@ -55,26 +131,45 @@ export const callbackService = {
    * 失败回调: msg 为失败原因字符串，report_create_time 为 null
    */
   async notifyDownstream(
-    callbackUrl: string,
+    callbackPath: string,
     requestId: string,
     systemId: string,
     requestType: string,
     report: ReportMsg | null,
-    errorMsg: string | null
+    errorMsg: string | null,
+    esbSysHead?: Record<string, unknown> | null,
+    cnsmrSysNo?: string | null
   ): Promise<void> {
+    // 构建完整回调 URL
+    const callbackUrl = buildCallbackUrl(callbackPath);
     if (!callbackUrl) {
-      logger.debug('callback_url 为空，跳过回调通知', { requestId });
+      logger.debug('callback_path 为空，跳过回调通知', { requestId });
       return;
     }
 
     const isSuccess = report !== null;
-    const payload: CallbackPayload = {
-      request_id: requestId,
-      system_id: systemId,
-      request_type: requestType,
-      msg: isSuccess ? report : (errorMsg || '未知错误'),
-      report_create_time: isSuccess ? formatTimestamp() : null,
-    };
+    const reportCreateTime = isSuccess ? formatTimestamp() : null;
+    const msg = isSuccess ? report : (errorMsg || '未知错误');
+
+    // 根据配置决定输出格式
+    const payload: CallbackPayload | EsbCallbackPayload = config.callback.esbEnabled
+      ? {
+          sysHead: buildEsbSysHead(esbSysHead || null, cnsmrSysNo || null),
+          body: {
+            requestId,
+            systemId,
+            requestType,
+            msg,
+            reportCreateTime,
+          },
+        }
+      : {
+          request_id: requestId,
+          system_id: systemId,
+          request_type: requestType,
+          msg,
+          report_create_time: reportCreateTime,
+        };
 
     const maxRetries = config.callback.retryMax;
     const retryIntervals = config.callback.retryIntervals;
@@ -90,7 +185,7 @@ export const callbackService = {
 
         // 上游返回 code=0 表示接收成功
         if (respData && respData.code === 0) {
-          logger.info('回调通知成功', { requestId, url: callbackUrl, attempt });
+          logger.info('回调通知成功', { requestId, url: callbackUrl, attempt, esbMode: config.callback.esbEnabled });
           return;
         }
 

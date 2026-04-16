@@ -43,6 +43,13 @@ const config = {
     timeoutMs: parseInt(optionalEnv('CALLBACK_TIMEOUT_MS', '10000'), 10),
     retryMax: parseInt(optionalEnv('CALLBACK_RETRY_MAX', '3'), 10),
     retryIntervals: optionalEnv('CALLBACK_RETRY_INTERVALS', '10000,30000,60000').split(',').map(Number),
+    esbEnabled: optionalEnv('ESB_CALLBACK_ENABLED', 'false') === 'true',
+  },
+  esb: {
+    cnsmrSysNoInd: optionalEnv('ESB_CNSMR_SYS_NO_IND', 'LMAP'),
+    orgnlCnsmrSysNo: optionalEnv('ESB_ORGNL_CNSMR_SYS_NO', 'LMAP'),
+    callbackBaseUrl: optionalEnv('ESB_CALLBACK_BASE_URL', ''),
+    callbackSvcCd: optionalEnv('ESB_CALLBACK_SVC_CD', '40012N0011'),
   },
   security: {
     authEnabled: optionalEnv('AUTH_ENABLED', 'false') === 'true',

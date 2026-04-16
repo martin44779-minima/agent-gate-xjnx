@@ -74,14 +74,16 @@ export const schedulerService = {
       logger.info('任务处理完成', { taskId, requestId: task.request_id });
 
       // 回调上游 — 成功
-      if (task.callback_url && task.request_id) {
+      if (task.callback_path && task.request_id) {
         await callbackService.notifyDownstream(
-          task.callback_url,
+          task.callback_path,
           task.request_id,
           task.system_id || '',
           task.request_type,
           result.report,
-          null
+          null,
+          task.esb_sys_head,
+          task.cnsmr_sys_no
         );
       }
     } catch (err) {
@@ -92,7 +94,7 @@ export const schedulerService = {
 
 async function handleProcessError(
   taskId: string,
-  task: { retry_count: number; callback_url: string | null; request_id: string | null; system_id: string | null; request_type: string },
+  task: { retry_count: number; callback_url: string | null; callback_path: string | null; request_id: string | null; system_id: string | null; request_type: string; esb_sys_head?: Record<string, unknown> | null; cnsmr_sys_no?: string | null },
   startTime: Date,
   err: Error
 ): Promise<void> {
@@ -138,14 +140,16 @@ async function handleProcessError(
     logger.error('任务最终失败', { taskId, errorCode, retryCount: newRetryCount });
 
     // 回调上游 — 失败
-    if (task.callback_url && task.request_id) {
+    if (task.callback_path && task.request_id) {
       await callbackService.notifyDownstream(
-        task.callback_url,
+        task.callback_path,
         task.request_id,
         task.system_id || '',
         task.request_type,
         null,
-        err.message
+        err.message,
+        task.esb_sys_head,
+        task.cnsmr_sys_no
       );
     }
   }

@@ -16,6 +16,9 @@ export interface TaskMainRow {
   retry_count: number;
   next_retry_time: Date | null;
   last_error_code: string | null;
+  esb_sys_head: Record<string, unknown> | null;
+  cnsmr_sys_no: string | null;
+  callback_path: string | null;
   remark: string | null;
 }
 
@@ -59,6 +62,15 @@ export const taskMainModel = {
     const { rows } = await query<TaskMainRow>(
       'SELECT * FROM task_main WHERE system_id = $1 AND request_id = $2 AND request_type = $3 AND task_status = 2 ORDER BY end_time DESC LIMIT 1',
       [systemId, requestId, requestType]
+    );
+    return rows[0] || null;
+  },
+
+  /** 查询回调所需的 ESB 元数据（仅取 sysHead 和 cnsmr_sys_no） */
+  async findCallbackMetaByTaskId(taskId: string): Promise<Pick<TaskMainRow, 'task_id' | 'esb_sys_head' | 'cnsmr_sys_no'> | null> {
+    const { rows } = await query<Pick<TaskMainRow, 'task_id' | 'esb_sys_head' | 'cnsmr_sys_no'>>(
+      'SELECT task_id, esb_sys_head, cnsmr_sys_no FROM task_main WHERE task_id = $1',
+      [taskId]
     );
     return rows[0] || null;
   },
