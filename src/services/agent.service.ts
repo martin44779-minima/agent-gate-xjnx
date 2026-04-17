@@ -10,9 +10,7 @@ const logger = createModuleLogger('agent');
 
 /**
  * AW 智能体返回结果
- * 智能体经过分支处理后返回结构化报告:
- * - 排除案例: 只有 analysis_report 有内容
- * - 风险案例: 四个字段都有内容
+ * 从 agentFlowExecutedData[id=directReplyAgentflow_0].data.state 中提取四字段
  */
 export interface AgentInvokeResult {
   /** AW 智能体返回的完整原始响应 */
@@ -93,14 +91,9 @@ function classifyError(err: AxiosError): { code: string; retryable: boolean } {
 
 /**
  * 将智能体返回结果解析为结构化 ReportMsg
- * 智能体经过分支后:
- * - 排除案例: 只有 analysis_report
- * - 风险案例: 四个字段都有内容
- *
- * 兼容多种返回格式:
- * 1. 对象中直接包含 analysis_report 字段 → 提取四字段
- * 2. 嵌套在 text/msg/report 键下的 JSON 字符串 → 先解析再提取
- * 3. 纯字符串 → 尝试 JSON 解析，失败则整体作为 analysis_report
+ * 从 agentFlowExecutedData 列表中找到 id=directReplyAgentflow_0 的节点，
+ * 提取其 data.state 下的四个字段。
+ * doubtful_point_analysis 可能拆分为 doubtful_point_analysis1/2，用换行符拼接。
  */
 function parseReportMsg(result: unknown): ReportMsg {
   const empty: ReportMsg = {
@@ -110,61 +103,38 @@ function parseReportMsg(result: unknown): ReportMsg {
     analysis_report: '',
   };
 
-  function extractFromObj(obj: Record<string, unknown>): ReportMsg {
-    return {
-      customer_behavior_analysis: String(obj.customer_behavior_analysis ?? ''),
-      account_transaction_analysis: String(obj.account_transaction_analysis ?? ''),
-      doubtful_point_analysis: String(obj.doubtful_point_analysis ?? ''),
-      analysis_report: String(obj.analysis_report ?? ''),
-    };
+  if (!result || typeof result !== 'object' || Array.isArray(result)) {
+    return { ...empty, analysis_report: String(result ?? '') };
   }
 
-  function tryParseJson(str: string): Record<string, unknown> | null {
-    try {
-      const parsed = JSON.parse(str);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      // 非 JSON 字符串
-    }
-    return null;
-  }
+  const obj = result as Record<string, unknown>;
+  const flowData = obj.agentFlowExecutedData;
 
-  if (result && typeof result === 'object' && !Array.isArray(result)) {
-    const obj = result as Record<string, unknown>;
-
-    // 对象直接包含 analysis_report 字段，认为是结构化报告
-    if ('analysis_report' in obj) {
-      return extractFromObj(obj);
-    }
-
-    // 可能嵌套在 text / msg / report 键下（flowise 常见格式）
-    const nested = obj.text ?? obj.msg ?? obj.report;
-    if (typeof nested === 'string') {
-      const parsed = tryParseJson(nested);
-      if (parsed && 'analysis_report' in parsed) {
-        return extractFromObj(parsed);
-      }
-      return { ...empty, analysis_report: nested };
-    }
-    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
-      const nestedObj = nested as Record<string, unknown>;
-      if ('analysis_report' in nestedObj) {
-        return extractFromObj(nestedObj);
-      }
-    }
-
+  if (!Array.isArray(flowData)) {
     return { ...empty, analysis_report: JSON.stringify(result) };
   }
 
-  if (typeof result === 'string') {
-    const parsed = tryParseJson(result);
-    if (parsed && 'analysis_report' in parsed) {
-      return extractFromObj(parsed);
-    }
-    return { ...empty, analysis_report: result };
+  const targetNode = flowData.find((item: unknown) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+    const node = item as Record<string, unknown>;
+    const data = node.data as Record<string, unknown> | undefined;
+    return data?.id === 'directReplyAgentflow_0';
+  });
+
+  if (!targetNode) {
+    return { ...empty, analysis_report: JSON.stringify(result) };
   }
 
-  return { ...empty, analysis_report: String(result) };
+  const state = ((targetNode as Record<string, unknown>).data as Record<string, unknown>).state as Record<string, unknown>;
+
+  const part1 = String(state.doubtful_point_analysis1 ?? '');
+  const part2 = String(state.doubtful_point_analysis2 ?? '');
+  const doubtful = [part1, part2].filter(Boolean).join('\n');
+
+  return {
+    customer_behavior_analysis: String(state.customer_behavior_analysis ?? ''),
+    account_transaction_analysis: String(state.account_transaction_analysis ?? ''),
+    doubtful_point_analysis: doubtful,
+    analysis_report: String(state.analysis_report ?? ''),
+  };
 }
