@@ -2,7 +2,6 @@ import { taskMainModel } from '../models/task-main.model';
 import { taskRawModel } from '../models/task-raw.model';
 import { taskResultModel } from '../models/task-result.model';
 import { TASK_STATUS_TEXT, TaskStatusValue, DATA_TYPES } from '../config/constants';
-import { FormData } from '../schemas/submit.schema';
 import { ReportMsg } from './callback.service';
 
 export interface TaskDetail {
@@ -67,7 +66,7 @@ export const storageService = {
   /**
    * 获取任务原始入参 form 数据
    */
-  async getRawData(taskId: string): Promise<FormData | null> {
+  async getRawData(taskId: string): Promise<unknown | null> {
     const rows = await taskRawModel.findByTaskId(taskId);
     const raw = rows.find((r) => r.data_type === DATA_TYPES.RAW_INPUT);
     if (!raw) return null;
@@ -75,7 +74,7 @@ export const storageService = {
     const content = typeof raw.data_content === 'string'
       ? JSON.parse(raw.data_content)
       : raw.data_content;
-    return content as FormData;
+    return content;
   },
 
   /**

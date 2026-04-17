@@ -5,16 +5,10 @@ import { createModuleLogger } from '../utils/logger';
 const logger = createModuleLogger('callback');
 
 /**
- * 报告结构化对象（回调成功时的 msg 格式）
- * 排除案例: 只有 analysis_report 有内容
- * 风险案例: 四个字段都有内容
+ * 报告对象（回调成功时的 msg 格式）
+ * 字段由各业务适配器自行约定，网关透传不感知
  */
-export interface ReportMsg {
-  customer_behavior_analysis: string;
-  account_transaction_analysis: string;
-  doubtful_point_analysis: string;
-  analysis_report: string;
-}
+export type ReportMsg = Record<string, string>;
 
 /**
  * 直连回调请求体（snake_case 平铺）

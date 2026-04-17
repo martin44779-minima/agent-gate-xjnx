@@ -2,6 +2,7 @@ import { taskMainModel } from '../models/task-main.model';
 import { agentService } from './agent.service';
 import { storageService } from './storage.service';
 import { callbackService } from './callback.service';
+import { getAdapter } from '../adapters';
 import eventBus from './event-bus';
 import config from '../config';
 import { TASK_STATUS } from '../config/constants';
@@ -45,22 +46,27 @@ export const schedulerService = {
     logger.info('任务开始处理', { taskId, retryCount: task.retry_count });
 
     try {
+      // 获取对应适配器（system_id 存库，此处取出）
+      const adapter = getAdapter(task.system_id || '');
+      if (!adapter) {
+        throw new Error(`system_id [${task.system_id}] 无对应适配器`);
+      }
+
       // 读取原始入参 form 数据
       const formData = await storageService.getRawData(taskId);
       if (!formData) {
         throw new Error('原始入参数据不存在');
       }
 
-      // 调用 AW 智能体
-      const result = await agentService.invoke(taskId, formData);
+      // 适配器组装 payload，调用对应智能体
+      const payload = adapter.buildAgentPayload(formData);
+      const rawResponse = await agentService.invoke(taskId, payload, adapter.agentUrl);
+
+      // 适配器解析响应为回调 msg
+      const report = adapter.parseResponse(rawResponse);
 
       // 保存处理结果
-      await storageService.saveResult(
-        taskId,
-        'aw-agent',
-        result.rawResponse,
-        result.report
-      );
+      await storageService.saveResult(taskId, 'aw-agent', rawResponse, report);
 
       // 更新为已完成
       const endTime = nowDatetime();
@@ -80,7 +86,7 @@ export const schedulerService = {
           task.request_id,
           task.system_id || '',
           task.request_type,
-          result.report,
+          report,
           null,
           task.esb_sys_head,
           task.cnsmr_sys_no

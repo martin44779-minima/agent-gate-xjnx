@@ -5,6 +5,7 @@ import { generateChecksum } from '../utils/crypto';
 import { DATA_TYPES } from '../config/constants';
 import { createModuleLogger } from '../utils/logger';
 import { SubmitRequestBody } from '../schemas/submit.schema';
+import { getAdapter } from '../adapters';
 import eventBus from './event-bus';
 
 const logger = createModuleLogger('gateway');
@@ -29,6 +30,28 @@ export const gatewayService = {
       system_id: systemId,
       callback_url: callbackUrl,
     } = body;
+
+    // 查找对应适配器，未注册的 system_id 直接拒绝
+    const adapter = getAdapter(systemId);
+    if (!adapter) {
+      logger.warn('未找到对应适配器', { systemId });
+      return {
+        code: 2,
+        msg: `system_id [${systemId}] 未注册，请联系网关管理员`,
+        request_id: requestId,
+      };
+    }
+
+    // 适配器校验 form 字段
+    const formError = adapter.validateForm(form);
+    if (formError) {
+      logger.warn('form 字段校验失败', { systemId, requestId, error: formError });
+      return {
+        code: 3,
+        msg: `form 字段校验失败: ${formError}`,
+        request_id: requestId,
+      };
+    }
 
     // 防重检查：同 request_id + 同 request_type 存在活跃任务时拒绝
     const existing = await taskMainModel.findActiveByRequestIdAndType(requestId, requestType);
