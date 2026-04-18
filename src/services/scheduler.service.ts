@@ -47,7 +47,7 @@ export const schedulerService = {
 
     try {
       // 获取对应适配器（system_id 存库，此处取出）
-      const adapter = getAdapter(task.system_id || '');
+      const adapter = await getAdapter(task.system_id || '');
       if (!adapter) {
         throw new Error(`system_id [${task.system_id}] 无对应适配器`);
       }

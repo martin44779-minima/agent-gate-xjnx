@@ -45,19 +45,8 @@ export const submitSchema = {
   additionalProperties: true,  // 允许 _esb_meta 等内部字段
 };
 
-/** form 内部字段类型（10个业务字段） */
-export interface FormData {
-  customer_info: string;
-  customer_account_info: string;
-  bank_statement_info: string;
-  feature_info: string;
-  summery_info: string;
-  feature_statement_info?: string;
-  history_case_info?: string;
-  doubt_exclusion_reasons_info?: string;
-  due_diligence_info?: string;
-  history_rating_info?: string;
-}
+/** form 字段类型：各业务字段由适配器的 form_schema 定义，此处仅约束为 object */
+export type FormData = Record<string, unknown>;
 
 /** 完整请求体类型 */
 export interface SubmitRequestBody {

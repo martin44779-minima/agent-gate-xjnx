@@ -32,7 +32,7 @@ export const gatewayService = {
     } = body;
 
     // 查找对应适配器，未注册的 system_id 直接拒绝
-    const adapter = getAdapter(systemId);
+    const adapter = await getAdapter(systemId);
     if (!adapter) {
       logger.warn('未找到对应适配器', { systemId });
       return {

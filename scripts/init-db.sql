@@ -119,3 +119,68 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_task_result_task_id ON task_result(task_id
 -- COMMENT ON COLUMN task_main.esb_sys_head IS 'ESB系统头信息（上游传入原始JSON，回调时组装回传）';
 -- COMMENT ON COLUMN task_main.cnsmr_sys_no IS '消费者系统号（回调时用于生成cnsmrSrlNo）';
 -- COMMENT ON COLUMN task_main.callback_path IS '回调路径（文根，需与ESB_CALLBACK_BASE_URL拼接为完整URL）';
+
+-- ============================================
+-- 增量迁移：新增适配器注册表
+-- ============================================
+-- CREATE TABLE IF NOT EXISTS adapter_registry (
+--   system_id     VARCHAR(64)  NOT NULL PRIMARY KEY,
+--   display_name  VARCHAR(128),
+--   agent_url     VARCHAR(512) NOT NULL,
+--   form_schema   JSONB        NOT NULL,
+--   response_map  JSONB        NOT NULL,
+--   enabled       BOOLEAN      NOT NULL DEFAULT TRUE,
+--   created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--   updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+-- );
+-- COMMENT ON TABLE adapter_registry IS '动态适配器注册表，新部门接入只需插入一行，无需改动代码';
+-- COMMENT ON COLUMN adapter_registry.system_id    IS '上游系统唯一标识，与请求体 system_id 对应';
+-- COMMENT ON COLUMN adapter_registry.display_name IS '部门/系统名称，仅供展示';
+-- COMMENT ON COLUMN adapter_registry.agent_url    IS '该业务对应的 Flowise chatflow prediction 完整 URL';
+-- COMMENT ON COLUMN adapter_registry.form_schema  IS 'AJV JSON Schema，定义 form 字段的校验规则';
+-- COMMENT ON COLUMN adapter_registry.response_map IS '响应字段映射规则，nodeIdPrefix + stateFields';
+-- COMMENT ON COLUMN adapter_registry.enabled      IS '是否启用，FALSE 时网关拒绝该 system_id 的请求';
+
+-- ============================================
+-- 初始数据：AML 反洗钱系统
+-- 执行前将 agent_url 替换为实际的 Flowise chatflow URL
+-- ============================================
+-- INSERT INTO adapter_registry (system_id, display_name, agent_url, form_schema, response_map)
+-- VALUES (
+--   'XJRCCB_AML',
+--   '新疆农村商业银行 - 反洗钱系统',
+--   'http://your-flowise-host/api/v1/prediction/your-chatflow-id',
+--   '{
+--     "type": "object",
+--     "required": [
+--       "customer_info",
+--       "customer_account_info",
+--       "bank_statement_info",
+--       "feature_info",
+--       "summery_info"
+--     ],
+--     "properties": {
+--       "customer_info":                { "type": "string" },
+--       "customer_account_info":        { "type": "string" },
+--       "bank_statement_info":          { "type": "string" },
+--       "feature_info":                 { "type": "string" },
+--       "summery_info":                 { "type": "string" },
+--       "feature_statement_info":       { "type": "string" },
+--       "history_case_info":            { "type": "string" },
+--       "doubt_exclusion_reasons_info": { "type": "string" },
+--       "due_diligence_info":           { "type": "string" },
+--       "history_rating_info":          { "type": "string" }
+--     },
+--     "additionalProperties": false
+--   }',
+--   '{
+--     "nodeIdPrefix": "directReplyAgentflow_",
+--     "stateFields": {
+--       "customer_behavior_analysis":   "customer_behavior_analysis",
+--       "account_transaction_analysis": "account_transaction_analysis",
+--       "doubtful_point_analysis":      ["doubtful_point_analysis1", "doubtful_point_analysis2"],
+--       "analysis_report":              "analysis_report"
+--     }
+--   }'
+-- );
+

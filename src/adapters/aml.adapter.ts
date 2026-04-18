@@ -78,7 +78,7 @@ export const amlAdapter: BizAdapter = {
       if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
       const node = item as Record<string, unknown>;
       const data = node.data as Record<string, unknown> | undefined;
-      return data?.id === 'directReplyAgentflow_0';
+      return typeof data?.id === 'string' && data.id.startsWith('directReplyAgentflow_');
     });
 
     if (!targetNode) {

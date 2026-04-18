@@ -31,8 +31,8 @@ const config = {
     max: parseInt(optionalEnv('DB_MAX_CONNECTIONS', '20'), 10),
   },
   agent: {
-    /** AW 智能体完整 URL（flowise prediction 端点） */
-    baseUrl: requiredEnv('AW_AGENT_URL'),
+    /** AW 智能体兜底 URL，优先使用 adapter_registry 中各业务配置的 agent_url */
+    baseUrl: optionalEnv('AW_AGENT_URL', ''),
     timeoutMs: parseInt(optionalEnv('AW_TIMEOUT_MS', '600000'), 10),
   },
   retry: {
