@@ -28,11 +28,12 @@ export const gatewayService = {
       request_id: requestId,
       request_type: requestType,
       system_id: systemId,
+      svc_cd: svcCd = '',
       callback_url: callbackUrl,
     } = body;
 
     // 查找对应适配器，未注册的 system_id 直接拒绝
-    const adapter = await getAdapter(systemId);
+    const adapter = await getAdapter(systemId, svcCd);
     if (!adapter) {
       logger.warn('未找到对应适配器', { systemId });
       return {
@@ -76,9 +77,9 @@ export const gatewayService = {
       // 插入主任务记录
       // callback_url 列存文根路径，回调时与 ESB_CALLBACK_BASE_URL 拼接
       await client.query(
-        `INSERT INTO task_main (task_id, request_id, request_type, system_id, callback_url, esb_sys_head, cnsmr_sys_no, callback_path, task_status, retry_count)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, 0)`,
-        [taskId, requestId, requestType, systemId, callbackUrl, esbSysHead ? JSON.stringify(esbSysHead) : null, cnsmrSysNo, callbackUrl]
+        `INSERT INTO task_main (task_id, request_id, request_type, system_id, svc_cd, callback_url, esb_sys_head, cnsmr_sys_no, callback_path, task_status, retry_count)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 0, 0)`,
+        [taskId, requestId, requestType, systemId, svcCd, callbackUrl, esbSysHead ? JSON.stringify(esbSysHead) : null, cnsmrSysNo, callbackUrl]
       );
 
       // 将整体 form 数据作为原始数据存储

@@ -10,6 +10,7 @@ addFormats(ajv);
  */
 export interface AdapterRegistryRow {
   system_id: string;
+  svc_cd: string;
   display_name?: string;
   agent_url: string;
   form_schema: Record<string, unknown>;

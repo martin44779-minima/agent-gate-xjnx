@@ -54,6 +54,7 @@ export interface SubmitRequestBody {
   request_id: string;
   request_type: string;
   system_id: string;
+  svc_cd?: string;
   form: FormData;
   _esb_meta?: { sysHead: Record<string, unknown> };
 }

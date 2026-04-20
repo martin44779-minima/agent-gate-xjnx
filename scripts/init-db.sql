@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS task_main (
   request_id VARCHAR(128),
   request_type VARCHAR(1) NOT NULL DEFAULT '0',
   system_id VARCHAR(128),
+  svc_cd VARCHAR(32) NOT NULL DEFAULT '',
   callback_url VARCHAR(500),
   task_status SMALLINT NOT NULL DEFAULT 0,
   create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -30,7 +31,8 @@ COMMENT ON COLUMN task_main.id IS '自增主键';
 COMMENT ON COLUMN task_main.task_id IS '内部任务ID，UUID格式，全局唯一';
 COMMENT ON COLUMN task_main.request_id IS '上游系统提供的案例ID，全局唯一';
 COMMENT ON COLUMN task_main.request_type IS '案例类型：0-排除，1-上报';
-COMMENT ON COLUMN task_main.system_id IS '反洗钱系统分配的系统ID';
+COMMENT ON COLUMN task_main.system_id IS '上游系统ID';
+COMMENT ON COLUMN task_main.svc_cd IS 'ESB接口编号，与system_id联合定位适配器';
 COMMENT ON COLUMN task_main.callback_url IS '异步处理完成后的回调地址';
 COMMENT ON COLUMN task_main.task_status IS '任务状态：0-待处理，1-处理中，2-已完成，3-重试中，4-失败';
 COMMENT ON COLUMN task_main.create_time IS '任务创建时间';
@@ -66,7 +68,7 @@ COMMENT ON TABLE task_raw_data IS '原始数据表，存储提交时的完整for
 COMMENT ON COLUMN task_raw_data.id IS '自增主键';
 COMMENT ON COLUMN task_raw_data.task_id IS '关联的任务ID';
 COMMENT ON COLUMN task_raw_data.data_type IS '数据类型标识，当前固定为raw_input';
-COMMENT ON COLUMN task_raw_data.data_content IS '原始入参JSON数据（10个业务字段）';
+COMMENT ON COLUMN task_raw_data.data_content IS '原始入参JSON数据';
 COMMENT ON COLUMN task_raw_data.data_size IS '数据大小（字节）';
 COMMENT ON COLUMN task_raw_data.checksum IS '数据完整性校验码（SHA256）';
 COMMENT ON COLUMN task_raw_data.create_time IS '记录创建时间';
@@ -91,7 +93,7 @@ COMMENT ON COLUMN task_result.id IS '自增主键';
 COMMENT ON COLUMN task_result.task_id IS '关联的任务ID';
 COMMENT ON COLUMN task_result.agent_id IS '处理该任务的智能体ID';
 COMMENT ON COLUMN task_result.result_content IS '智能体返回的完整原始响应（JSON）';
-COMMENT ON COLUMN task_result.report IS '结构化报告（JSON字符串，含4个分析字段）';
+COMMENT ON COLUMN task_result.report IS '结构化报告（JSON字符串）';
 COMMENT ON COLUMN task_result.risk_level IS '风险等级（预留扩展）';
 COMMENT ON COLUMN task_result.risk_score IS '风险评分（预留扩展）';
 COMMENT ON COLUMN task_result.conclusion IS '结论（预留扩展）';
@@ -99,8 +101,31 @@ COMMENT ON COLUMN task_result.create_time IS '结果创建时间';
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_task_result_task_id ON task_result(task_id);
 
+-- 适配器注册表
+CREATE TABLE IF NOT EXISTS adapter_registry (
+  system_id     VARCHAR(64)  NOT NULL,
+  svc_cd        VARCHAR(32)  NOT NULL DEFAULT '',
+  display_name  VARCHAR(128),
+  agent_url     VARCHAR(512) NOT NULL,
+  form_schema   JSONB        NOT NULL,
+  response_map  JSONB        NOT NULL,
+  enabled       BOOLEAN      NOT NULL DEFAULT TRUE,
+  created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (system_id, svc_cd)
+);
+
+COMMENT ON TABLE adapter_registry IS '动态适配器注册表，新部门接入只需插入一行，无需改动代码';
+COMMENT ON COLUMN adapter_registry.system_id    IS '上游系统唯一标识，与请求体 system_id 对应';
+COMMENT ON COLUMN adapter_registry.svc_cd       IS 'ESB接口编号，与system_id联合唯一定位适配器；直连调用时为空字符串';
+COMMENT ON COLUMN adapter_registry.display_name IS '部门/系统名称，仅供展示';
+COMMENT ON COLUMN adapter_registry.agent_url    IS '该业务对应的 Flowise chatflow prediction 完整 URL';
+COMMENT ON COLUMN adapter_registry.form_schema  IS 'AJV JSON Schema，定义 form 字段的校验规则';
+COMMENT ON COLUMN adapter_registry.response_map IS '响应字段映射规则，nodeIdPrefix + stateFields';
+COMMENT ON COLUMN adapter_registry.enabled      IS '是否启用，FALSE 时网关拒绝该 system_id 的请求';
+
 -- ============================================
--- 增量迁移 SQL（已有数据库执行）
+-- 增量迁移 SQL（已有数据库执行，按顺序逐条去注释执行）
 -- ============================================
 -- ALTER TABLE task_main RENAME COLUMN case_id TO request_id;
 -- ALTER TABLE task_main ADD COLUMN request_type VARCHAR(1) NOT NULL DEFAULT '0';
@@ -109,56 +134,35 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_task_result_task_id ON task_result(task_id
 -- DROP INDEX IF EXISTS idx_task_main_case_id;
 -- CREATE INDEX IF NOT EXISTS idx_task_main_req_id_type ON task_main(request_id, request_type);
 -- CREATE INDEX IF NOT EXISTS idx_task_main_system_id ON task_main(system_id);
--- COMMENT ON COLUMN task_main.request_id IS '上游系统提供的案例ID，全局唯一';
--- COMMENT ON COLUMN task_main.request_type IS '案例类型：0-排除，1-上报';
--- COMMENT ON COLUMN task_main.system_id IS '反洗钱系统分配的系统ID';
--- COMMENT ON COLUMN task_main.next_retry_time IS '下次重试预计执行时间';
 -- ALTER TABLE task_main ADD COLUMN esb_sys_head JSONB;
 -- ALTER TABLE task_main ADD COLUMN cnsmr_sys_no VARCHAR(64);
 -- ALTER TABLE task_main ADD COLUMN callback_path VARCHAR(500);
--- COMMENT ON COLUMN task_main.esb_sys_head IS 'ESB系统头信息（上游传入原始JSON，回调时组装回传）';
--- COMMENT ON COLUMN task_main.cnsmr_sys_no IS '消费者系统号（回调时用于生成cnsmrSrlNo）';
--- COMMENT ON COLUMN task_main.callback_path IS '回调路径（文根，需与ESB_CALLBACK_BASE_URL拼接为完整URL）';
-
--- ============================================
--- 增量迁移：新增适配器注册表
--- ============================================
+-- ALTER TABLE task_main ADD COLUMN svc_cd VARCHAR(32) NOT NULL DEFAULT '';
+-- COMMENT ON COLUMN task_main.svc_cd IS 'ESB接口编号，与system_id联合定位适配器';
+--
 -- CREATE TABLE IF NOT EXISTS adapter_registry (
---   system_id     VARCHAR(64)  NOT NULL PRIMARY KEY,
+--   system_id     VARCHAR(64)  NOT NULL,
+--   svc_cd        VARCHAR(32)  NOT NULL DEFAULT '',
 --   display_name  VARCHAR(128),
 --   agent_url     VARCHAR(512) NOT NULL,
 --   form_schema   JSONB        NOT NULL,
 --   response_map  JSONB        NOT NULL,
 --   enabled       BOOLEAN      NOT NULL DEFAULT TRUE,
 --   created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
---   updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+--   updated_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--   PRIMARY KEY (system_id, svc_cd)
 -- );
--- COMMENT ON TABLE adapter_registry IS '动态适配器注册表，新部门接入只需插入一行，无需改动代码';
--- COMMENT ON COLUMN adapter_registry.system_id    IS '上游系统唯一标识，与请求体 system_id 对应';
--- COMMENT ON COLUMN adapter_registry.display_name IS '部门/系统名称，仅供展示';
--- COMMENT ON COLUMN adapter_registry.agent_url    IS '该业务对应的 Flowise chatflow prediction 完整 URL';
--- COMMENT ON COLUMN adapter_registry.form_schema  IS 'AJV JSON Schema，定义 form 字段的校验规则';
--- COMMENT ON COLUMN adapter_registry.response_map IS '响应字段映射规则，nodeIdPrefix + stateFields';
--- COMMENT ON COLUMN adapter_registry.enabled      IS '是否启用，FALSE 时网关拒绝该 system_id 的请求';
-
--- ============================================
--- 初始数据：AML 反洗钱系统
--- 执行前将 agent_url 替换为实际的 Flowise chatflow URL
--- ============================================
--- INSERT INTO adapter_registry (system_id, display_name, agent_url, form_schema, response_map)
+--
+-- -- 初始数据：将 agent_url 和 svc_cd 替换为实际值后执行
+-- INSERT INTO adapter_registry (system_id, svc_cd, display_name, agent_url, form_schema, response_map)
 -- VALUES (
 --   'XJRCCB_AML',
+--   '50012N0040',
 --   '新疆农村商业银行 - 反洗钱系统',
 --   'http://your-flowise-host/api/v1/prediction/your-chatflow-id',
 --   '{
 --     "type": "object",
---     "required": [
---       "customer_info",
---       "customer_account_info",
---       "bank_statement_info",
---       "feature_info",
---       "summery_info"
---     ],
+--     "required": ["customer_info","customer_account_info","bank_statement_info","feature_info","summery_info"],
 --     "properties": {
 --       "customer_info":                { "type": "string" },
 --       "customer_account_info":        { "type": "string" },
@@ -183,4 +187,3 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_task_result_task_id ON task_result(task_id
 --     }
 --   }'
 -- );
-
