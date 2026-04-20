@@ -12,6 +12,8 @@ const redis = new Redis({
   name: process.env.REDIS_SENTINEL_NAME || 'redis6379',
   sentinelPassword: process.env.REDIS_SENTINEL_PASSWORD || 'IgGUL5edBPYPIA+o',
   password: process.env.REDIS_PASSWORD || 'IgGUL5edBPYPIA+o',
+  tls: { rejectUnauthorized: false },
+  sentinelTLS: { rejectUnauthorized: false },
   retryStrategy: (times) => Math.min(times * 500, 5000),
   enableReadyCheck: true,
 });
