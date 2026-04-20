@@ -7,8 +7,8 @@ import {
 
 const router = Router();
 
-router.get('/admin/adapters', listAdaptersController);
-router.post('/admin/adapters', upsertAdapterController);
-router.delete('/admin/adapters', deleteAdapterController);
+router.get('/api/admin/adapters', listAdaptersController);
+router.post('/api/admin/adapters', upsertAdapterController);
+router.delete('/api/admin/adapters', deleteAdapterController);
 
 export default router;
