@@ -82,7 +82,7 @@ function buildEsbSysHead(
     branchId: upstreamSysHead?.branchId || '',
     tlrNo: upstreamSysHead?.tlrNo || '',
     cnsmrSysNoInd: config.esb.cnsmrSysNoInd,
-    cnsmrSysNo: upstreamSysHead?.cnsmrSysNo || '',
+    cnsmrSysNo: config.esb.cnsmrSysNo,
     orgnlCnsmrSysNo: config.esb.orgnlCnsmrSysNo,
     txnDt: now.date,
     txnTm: now.time,
