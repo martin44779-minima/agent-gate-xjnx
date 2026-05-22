@@ -370,7 +370,7 @@ helm uninstall agent-gate -n <namespace>
 
 ## 7. 适配器注册
 
-服务启动后，需注册各业务的适配器。适配器配置存储在 Redis 中，key 格式为 `adapter:{system_id}:{svc_cd}`。
+服务启动后，需注册各业务的适配器。适配器配置存储在 Redis 中，key 格式为 `adapter:{system_id}:`（svc_cd 固定为空，路由仅依赖 system_id）。
 
 ### 7.1 方式一：通过管理 API 注册（推荐）
 
@@ -381,7 +381,7 @@ curl -X POST 'http://<HOST>:3000/api/admin/adapters' \
   -H 'Content-Type: application/json' \
   -d '{
     "system_id": "AML_XJNX",
-    "svc_cd": "40012N0011",
+    "svc_cd": "",
     "display_name": "新疆农信反洗钱",
     "agent_url": "http://10.1.161.125:3930/api/v1/prediction/165e15c4-0fdb-723f-1549-0cda411dc1c3",
     "callback_svc_cd": "40012N0011",
@@ -425,7 +425,7 @@ curl 'http://<HOST>:3000/api/admin/adapters'
 ```bash
 curl -X DELETE 'http://<HOST>:3000/api/admin/adapters' \
   -H 'Content-Type: application/json' \
-  -d '{"system_id": "AML_XJNX", "svc_cd": "40012N0011"}'
+  -d '{"system_id": "AML_XJNX", "svc_cd": ""}'
 ```
 
 ### 7.2 方式二：直接写入 Redis
@@ -436,10 +436,10 @@ curl -X DELETE 'http://<HOST>:3000/api/admin/adapters' \
 # 连接 Redis（通过 Sentinel 获取 master 地址后连接）
 redis-cli -h <redis-master-host> -p 6379 -a <password>
 
-# 写入适配器（key 格式: adapter:{system_id}:{svc_cd}）
-SET adapter:AML_XJNX:40012N0011 '{
+# 写入适配器（key 格式: adapter:{system_id}:，svc_cd 固定为空）
+SET adapter:AML_XJNX: '{
   "system_id": "AML_XJNX",
-  "svc_cd": "40012N0011",
+  "svc_cd": "",
   "display_name": "新疆农信反洗钱",
   "agent_url": "http://10.1.161.125:3930/api/v1/prediction/165e15c4-0fdb-723f-1549-0cda411dc1c3",
   "callback_svc_cd": "40012N0011",
@@ -471,17 +471,8 @@ SET adapter:AML_XJNX:40012N0011 '{
   }
 }'
 
-# 直连模式（无 svc_cd）的 key 格式
-SET adapter:AML_XJNX: '{
-  "system_id": "AML_XJNX",
-  "svc_cd": "",
-  "display_name": "新疆农信反洗钱（直连）",
-  "agent_url": "http://10.1.161.125:3930/api/v1/prediction/165e15c4-0fdb-723f-1549-0cda411dc1c3",
-  ...
-}'
-
 # 验证写入
-GET adapter:AML_XJNX:40012N0011
+GET adapter:AML_XJNX:
 
 # 查看所有适配器 key
 KEYS adapter:*
@@ -494,7 +485,7 @@ KEYS adapter:*
 | 字段 | 必填 | 说明 |
 |------|------|------|
 | `system_id` | 是 | 业务系统标识，与提交接口的 system_id 对应 |
-| `svc_cd` | 否 | ESB 接口编号，直连调用时为空字符串 |
+| `svc_cd` | 否 | 固定传 `""`，路由仅依赖 system_id；Redis key 格式为 `adapter:{system_id}:` |
 | `display_name` | 否 | 显示名称 |
 | `agent_url` | 是 | AgenticWork 智能体 URL，优先于全局 AW_AGENT_URL |
 | `callback_svc_cd` | 否 | ESB 回调时 sysHead.svcCd（即回调目标接口编码）；不填则使用全局 ESB_CALLBACK_SVC_CD；**不同部门回调接口码不同时必填** |
@@ -630,6 +621,10 @@ GET /health
 ESB 转发请求时会将业务参数包裹在 `{ sysHead, body }` 结构中，并使用驼峰命名。网关中间件自动检测并解包为内部 snake_case 格式。
 
 同时，ESB 会错误设置 `Content-Encoding: utf-8` 头，网关已内置中间件自动清除。
+
+**callbackUrl 格式兼容**：ESB 传入的 `callbackUrl` 支持两种格式，网关自动识别：
+- 纯路径字符串：`"/aml-api/permitall/callback/ai/caseReport"`
+- JSON 字符串（部分 ESB 版本）：`"{\"callbackUrl\":\"/aml-api/...\",\"svcCd\":\"40012N0011\"}"` — 网关自动提取其中的 callbackUrl，svcCd 忽略（回调接口码以适配器 `callback_svc_cd` 为准）
 
 ### 9.2 回调适配
 
