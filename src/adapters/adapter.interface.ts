@@ -23,4 +23,10 @@ export interface BizAdapter {
    * 不填则使用全局配置 AW_AGENT_URL
    */
   agentUrl?: string;
+
+  /**
+   * ESB 回调时 sysHead.svcCd 的值（即回调目标接口编码）
+   * 不填则回退到全局配置 ESB_CALLBACK_SVC_CD
+   */
+  callbackSvcCd?: string;
 }

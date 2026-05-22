@@ -7,7 +7,6 @@ export interface TaskMainRow {
   request_id: string | null;
   request_type: string;
   system_id: string | null;
-  svc_cd: string | null;
   callback_url: string | null;
   task_status: TaskStatusValue;
   create_time: Date;

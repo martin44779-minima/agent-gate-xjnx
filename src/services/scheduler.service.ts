@@ -45,12 +45,16 @@ export const schedulerService = {
 
     logger.info('任务开始处理', { taskId, retryCount: task.retry_count });
 
+    // 提前声明，供 catch 块中错误回调使用
+    let adapterCallbackSvcCd: string | undefined;
+
     try {
       // 获取对应适配器（system_id 存库，此处取出）
-      const adapter = await getAdapter(task.system_id || '', task.svc_cd || '');
+      const adapter = await getAdapter(task.system_id || '');
       if (!adapter) {
         throw new Error(`system_id [${task.system_id}] 无对应适配器`);
       }
+      adapterCallbackSvcCd = adapter.callbackSvcCd;
 
       // 读取原始入参 form 数据
       const formData = await storageService.getRawData(taskId);
@@ -89,11 +93,12 @@ export const schedulerService = {
           report,
           null,
           task.esb_sys_head,
-          task.cnsmr_sys_no
+          task.cnsmr_sys_no,
+          adapter.callbackSvcCd
         );
       }
     } catch (err) {
-      await handleProcessError(taskId, task, startTime, err as Error);
+      await handleProcessError(taskId, task, startTime, err as Error, adapterCallbackSvcCd);
     }
   },
 };
@@ -102,7 +107,8 @@ async function handleProcessError(
   taskId: string,
   task: { retry_count: number; callback_url: string | null; callback_path: string | null; request_id: string | null; system_id: string | null; request_type: string; esb_sys_head?: Record<string, unknown> | null; cnsmr_sys_no?: string | null },
   startTime: Date,
-  err: Error
+  err: Error,
+  callbackSvcCd?: string
 ): Promise<void> {
   const isRetryable = err instanceof AgentError && err.retryable;
   const errorCode = err instanceof AgentError ? err.errorCode : 'ERR_UNKNOWN';
@@ -155,7 +161,8 @@ async function handleProcessError(
         null,
         err.message,
         task.esb_sys_head,
-        task.cnsmr_sys_no
+        task.cnsmr_sys_no,
+        callbackSvcCd
       );
     }
   }

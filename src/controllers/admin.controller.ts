@@ -21,7 +21,7 @@ export async function listAdaptersController(req: Request, res: Response, next: 
  */
 export async function upsertAdapterController(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { system_id, svc_cd = '', display_name, agent_url, form_schema, response_map } = req.body;
+    const { system_id, svc_cd = '', display_name, agent_url, form_schema, response_map, callback_svc_cd } = req.body;
 
     if (!system_id || !agent_url || !form_schema || !response_map) {
       res.status(400).json({ code: 1, msg: '缺少必填字段：system_id、agent_url、form_schema、response_map' });
@@ -33,6 +33,7 @@ export async function upsertAdapterController(req: Request, res: Response, next:
       svc_cd,
       display_name,
       agent_url,
+      callback_svc_cd,
       form_schema,
       response_map,
     };

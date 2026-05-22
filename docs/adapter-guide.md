@@ -22,7 +22,7 @@
 | 字段 | 说明 | 示例 |
 |------|------|------|
 | `system_id` | 上游系统唯一标识 | `NAML`、`XJRCCB_AML` |
-| `svc_cd` | 同一系统下的业务细分码，不区分时留空 | `""`、`"012345"` |
+| `svc_cd` | 同一系统下的业务细分码，不区分时留空 | `""`、`"40012N0011"` |
 
 > **关键：`system_id + svc_cd` 共同确定一条适配器记录。**  
 > 注册时用什么组合，提交请求就必须携带同样的组合，否则会报"未注册"。
@@ -33,10 +33,10 @@
 - ESB 网关转发：从 `callbackUrl` 的 JSON 字符串中解析，如：
 
   ```json
-  { "callbackUrl": "/aml-api/callback", "svcCd": "012345" }
+  { "callbackUrl": "/aml-api/callback", "svcCd": "40012N0011" }
   ```
 
-  此时实际 `svc_cd` 为 `"012345"`，注册时必须保持一致。
+  此时实际 `svc_cd` 为 `"40012N0011"`，注册时必须保持一致。
 
 ---
 
@@ -58,6 +58,7 @@ X-API-Key: <网关 API Key>
 | `svc_cd` | 否 | string | 业务细分码，默认 `""` |
 | `display_name` | 否 | string | 可读名称，仅用于展示 |
 | `agent_url` | 是 | string | Flowise prediction 完整 URL |
+| `callback_svc_cd` | 否 | string | ESB 回调时 sysHead.svcCd（即回调目标接口编码）；不填则使用全局 `ESB_CALLBACK_SVC_CD` 配置 |
 | `form_schema` | 是 | object | JSON Schema，用于校验提交请求的 `form` 字段 |
 | `response_map` | 是 | object | 从 Flowise 响应中提取回调字段的映射规则 |
 
@@ -89,6 +90,7 @@ curl -X POST http://<网关地址>/api/admin/adapters \
     "svc_cd": "",
     "display_name": "反洗钱-NAML系统",
     "agent_url": "http://flowise:3000/api/v1/prediction/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "callback_svc_cd": "40012N0011",
     "form_schema": {
       "type": "object",
       "required": ["customer_info", "bank_statement_info"],

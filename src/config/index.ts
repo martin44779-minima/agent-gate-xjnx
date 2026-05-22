@@ -47,7 +47,6 @@ const config = {
   },
   esb: {
     cnsmrSysNoInd: optionalEnv('ESB_CNSMR_SYS_NO_IND', 'LMAP'),
-    cnsmrSysNo: optionalEnv('ESB_CNSMR_SYS_NO', '60400'),
     orgnlCnsmrSysNo: optionalEnv('ESB_ORGNL_CNSMR_SYS_NO', 'LMAP'),
     callbackBaseUrl: optionalEnv('ESB_CALLBACK_BASE_URL', ''),
     callbackSvcCd: optionalEnv('ESB_CALLBACK_SVC_CD', '40012N0011'),

@@ -13,6 +13,8 @@ export interface AdapterRegistryRow {
   svc_cd: string;
   display_name?: string;
   agent_url: string;
+  /** ESB 回调时 sysHead.svcCd，不填则回退到全局 ESB_CALLBACK_SVC_CD */
+  callback_svc_cd?: string;
   form_schema: Record<string, unknown>;
   response_map: ResponseMap;
 }
@@ -37,6 +39,7 @@ export function buildAdapterFromRow(row: AdapterRegistryRow): BizAdapter {
 
   return {
     agentUrl: row.agent_url,
+    callbackSvcCd: row.callback_svc_cd,
 
     validateForm(form: unknown): string | null {
       const valid = validateFn(form);

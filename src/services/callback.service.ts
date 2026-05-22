@@ -68,21 +68,22 @@ function sleep(ms: number): Promise<void> {
  */
 function buildEsbSysHead(
   upstreamSysHead: Record<string, unknown> | null,
-  cnsmrSysNo: string | null
+  cnsmrSysNo: string | null,
+  svcCd: string
 ): Record<string, unknown> {
   const now = formatDateTimeCompact();
   const cnsmrSrlNo = `AI_${cnsmrSysNo || 'unknown'}_${now.date}${now.time}`;
 
   return {
-    // svcCd 从配置项获取
-    svcCd: config.esb.callbackSvcCd,
+    // svcCd 优先使用 adapter 级别配置，回退到全局 ESB_CALLBACK_SVC_CD
+    svcCd,
     scnCd: upstreamSysHead?.scnCd || '',
     chnlTp: upstreamSysHead?.chnlTp || '',
     lglPrsnCd: '',
     branchId: upstreamSysHead?.branchId || '',
     tlrNo: upstreamSysHead?.tlrNo || '',
     cnsmrSysNoInd: config.esb.cnsmrSysNoInd,
-    cnsmrSysNo: config.esb.cnsmrSysNo,
+    cnsmrSysNo: upstreamSysHead?.cnsmrSysNo || '',
     orgnlCnsmrSysNo: config.esb.orgnlCnsmrSysNo,
     txnDt: now.date,
     txnTm: now.time,
@@ -132,7 +133,8 @@ export const callbackService = {
     report: ReportMsg | null,
     errorMsg: string | null,
     esbSysHead?: Record<string, unknown> | null,
-    cnsmrSysNo?: string | null
+    cnsmrSysNo?: string | null,
+    callbackSvcCd?: string
   ): Promise<void> {
     // 构建完整回调 URL
     const callbackUrl = buildCallbackUrl(callbackPath);
@@ -148,7 +150,7 @@ export const callbackService = {
     // 根据配置决定输出格式
     const payload: CallbackPayload | EsbCallbackPayload = config.callback.esbEnabled
       ? {
-          sysHead: buildEsbSysHead(esbSysHead || null, cnsmrSysNo || null),
+          sysHead: buildEsbSysHead(esbSysHead || null, cnsmrSysNo || null, callbackSvcCd || config.esb.callbackSvcCd),
           body: {
             requestId,
             systemId,
